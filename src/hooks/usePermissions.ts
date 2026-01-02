@@ -55,18 +55,36 @@ export const usePermissions = (
           "✅ Accessibility permissions working! Check if the test text appeared in another app."
         );
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Accessibility permission test failed:", err);
-      if (showAlertDialog) {
-        showAlertDialog({
-          title: "❌ Accessibility Permissions Needed",
-          description:
-            "Please grant accessibility permissions in System Settings to enable automatic text pasting.",
-        });
+      const errorMessage = err?.message || err?.toString() || "";
+      
+      if (
+        errorMessage.includes("wtype") || 
+        errorMessage.includes("ydotool") || 
+        errorMessage.includes("xdotool") ||
+        errorMessage.includes("Wayland")
+      ) {
+        if (showAlertDialog) {
+          showAlertDialog({
+            title: "❌ Linux Dependencies Missing",
+            description: errorMessage,
+          });
+        } else {
+          alert(`❌ Linux Dependencies Missing\n\n${errorMessage}`);
+        }
       } else {
-        alert(
-          "❌ Accessibility permissions needed! Please grant them in System Settings."
-        );
+        if (showAlertDialog) {
+          showAlertDialog({
+            title: "❌ Accessibility Permissions Needed",
+            description:
+              "Please grant accessibility permissions in System Settings to enable automatic text pasting.",
+          });
+        } else {
+          alert(
+            "❌ Accessibility permissions needed! Please grant them in System Settings."
+          );
+        }
       }
     }
   }, [showAlertDialog]);

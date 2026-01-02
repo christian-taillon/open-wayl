@@ -245,7 +245,8 @@ class ClipboardManager {
 
     // All tools failed - create specific error for renderer to handle
     const sessionInfo = isWayland ? "Wayland" : "X11";
-    const errorMsg = `Clipboard copied, but paste simulation failed on ${sessionInfo}. Please install ${isWayland ? "wtype or ydotool" : "xdotool"} for automatic pasting, or paste manually with Ctrl+V.`;
+    const toolsSuggestion = isWayland ? "wtype, xdotool, or ydotool" : "xdotool";
+    const errorMsg = `Clipboard copied, but paste simulation failed on ${sessionInfo}. Please install ${toolsSuggestion} for automatic pasting, or paste manually with Ctrl+V.`;
     const err = new Error(errorMsg);
     err.code = "PASTE_SIMULATION_FAILED";
     throw err;

@@ -38,9 +38,9 @@ export class InferenceConfigManager {
   }
 
   getOptimalThreadCount(): number {
-    // Use 75% of available CPUs for optimal performance
+    // Use 80% of available CPUs for optimal performance on Intel Core Ultra 9 185H
     const cpuCount = cpus().length;
-    return Math.max(1, Math.floor(cpuCount * 0.75));
+    return Math.max(1, Math.floor(cpuCount * 0.8));
   }
 
   private getDefaultConfig(): InferenceConfig {

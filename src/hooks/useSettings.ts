@@ -33,7 +33,7 @@ export interface ApiKeySettings {
 export function useSettings() {
   const [useLocalWhisper, setUseLocalWhisper] = useLocalStorage(
     "useLocalWhisper",
-    false,
+    true,
     {
       serialize: String,
       deserialize: (value) => value === "true",
@@ -115,7 +115,7 @@ export function useSettings() {
 
   const [reasoningModel, setReasoningModel] = useLocalStorage(
     "reasoningModel",
-    "gpt-4o-mini",
+    "llama-3.2-3b-instruct-q4_k_m",
     {
       serialize: String,
       deserialize: String,
@@ -240,10 +240,10 @@ export function useSettings() {
       }
 
       const providerModels = {
-        openai: "gpt-4o-mini", // Start with cost-efficient multimodal model
+        openai: "gpt-4o-mini",
         anthropic: "claude-3.5-sonnet-20241022",
         gemini: "gemini-2.5-flash",
-        local: "llama-3.2-3b",
+        local: "llama-3.2-3b-instruct-q4_k_m",
       };
       setReasoningModel(
         providerModels[provider as keyof typeof providerModels] ||

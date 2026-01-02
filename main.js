@@ -1,5 +1,10 @@
 const { app, globalShortcut, BrowserWindow, dialog } = require("electron");
 
+// Force GTK 3 to avoid GTK 2/3 vs GTK 4 conflict in Electron 36+ on Linux
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('gtk-version', '3');
+}
+
 // Ensure macOS menus use the proper casing for the app name
 if (process.platform === "darwin" && app.getName() !== "OpenWhispr") {
   app.setName("OpenWhispr");
@@ -106,6 +111,32 @@ const ipcHandlers = new IPCHandlers({
   whisperManager,
   windowManager,
 });
+
+// Single instance lock
+const hasLock = app.requestSingleInstanceLock();
+
+if (!hasLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine, workingDirectory) => {
+    // Check for toggle command
+    if (commandLine.includes('--toggle')) {
+      if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
+        windowManager.showDictationPanel();
+        windowManager.mainWindow.webContents.send("toggle-dictation");
+      }
+      return;
+    }
+
+    // Otherwise focus the control panel
+    if (windowManager.controlPanelWindow) {
+      if (windowManager.controlPanelWindow.isMinimized()) windowManager.controlPanelWindow.restore();
+      windowManager.controlPanelWindow.focus();
+    } else {
+      windowManager.createControlPanelWindow();
+    }
+  });
+}
 
 // Main application startup
 async function startApp() {

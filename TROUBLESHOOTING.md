@@ -70,4 +70,23 @@ If any of these look wrong (e.g., `x86_64` binaries on an Apple Silicon host), r
 4. Re-run the Local Whisper onboarding check or use the Control Panel → Whisper Engine card to verify detection succeeds.
 5. If you would rather stay on cloud transcription, open the Control Panel, toggle off “Use Local Whisper”, or enable “Allow OpenAI fallback” so the app automatically switches to the API whenever Python is missing.
 
+### 6. Electron 36 GTK Conflict (Linux)
+**Symptoms:** The app crashes immediately on launch with an error like:
+```
+Gtk-ERROR **: GTK 2/3 symbols detected. Using GTK 2/3 and GTK 4 in same process is not supported
+```
+
+**Cause:** Electron 36+ defaults to using GTK 4, which conflicts with system libraries if any GTK 2/3 components (like IBus or themes) are loaded into the process.
+
+**Resolution:**
+We have patched `main.js` to automatically force GTK 3 usage on Linux, which avoids the conflict.
+If you are running a custom build or older version:
+1.  Launch with the flag: `npm start -- --gtk-version=3`
+2.  Or permanently fix by adding this to the top of `main.js` (after imports):
+    ```javascript
+    if (process.platform === 'linux') {
+      app.commandLine.appendSwitch('gtk-version', '3');
+    }
+    ```
+
 Need deeper help? Capture the diagnostic command output and attach it to an issue so we can see which stage failed.

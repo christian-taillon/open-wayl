@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const { app } = require("electron");
 const fs = require("fs");
 const fsPromises = require("fs").promises;
 const os = require("os");
@@ -61,8 +62,8 @@ class WhisperManager {
   }
 
   getWhisperScriptPath() {
-    // In production, the file is unpacked from ASAR
-    if (process.env.NODE_ENV === "development") {
+    // In development (not packaged) or explicitly set dev mode
+    if (!app.isPackaged || process.env.NODE_ENV === "development") {
       return path.join(__dirname, "..", "..", "whisper_bridge.py");
     } else {
       // In production, use the unpacked path
@@ -1028,13 +1029,16 @@ class WhisperManager {
       }
     }
     
-    const buildInstallArgs = ({ user = false, legacy = false } = {}) => {
+    const buildInstallArgs = ({ user = false, legacy = false, breakSystemPackages = false } = {}) => {
       const args = ["-m", "pip", "install"];
       if (legacy) {
         args.push("--use-deprecated=legacy-resolver");
       }
       if (user) {
         args.push("--user");
+      }
+      if (breakSystemPackages) {
+        args.push("--break-system-packages");
       }
       args.push("-U", "openai-whisper");
       return args;
@@ -1050,6 +1054,15 @@ class WhisperManager {
           return await runCommand(pythonCmd, buildInstallArgs({ user: true }), { timeout: TIMEOUTS.DOWNLOAD });
         } catch (userError) {
           const userMessage = this.sanitizeErrorMessage(userError.message);
+
+          if (userMessage.includes("externally-managed-environment") || userMessage.includes("break-system-packages")) {
+            try {
+              return await runCommand(pythonCmd, buildInstallArgs({ user: true, breakSystemPackages: true }), { timeout: TIMEOUTS.DOWNLOAD });
+            } catch (breakError) {
+              // Fall through to other error handling
+            }
+          }
+
           if (this.isTomlResolverError(userMessage)) {
             return await runCommand(pythonCmd, buildInstallArgs({ user: true, legacy: true }), { timeout: TIMEOUTS.DOWNLOAD });
           }
