@@ -1,6 +1,6 @@
 {
   "appId": "com.herotools.openwispr",
-  "productName": "OpenWhispr",
+  "productName": "OpenWayl",
   "directories": {
     "output": "dist"
   },
@@ -65,15 +65,12 @@
     "icon": "src/assets/icon.ico"
   },
   "linux": {
-    "target": [
-      "AppImage",
-      "deb",
-      "rpm",
-      "tar.gz"
-    ],
-    "icon": "src/assets/icon.png",
-    "category": "Utility",
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    "target": ["AppImage", "deb", "rpm", "tar.gz"],
+    "category": "Office",
+    "maintainer": "OpenWayl Team <support@openwhispr.com>",
+    "synopsis": "Desktop dictation app optimized for Wayland",
+    "description": "A desktop dictation application optimized for Linux Wayland, based on OpenWhispr.",
+    "icon": "assets/icon.png"
   },
   "flatpak": {
     "runtime": "org.freedesktop.Platform",
@@ -105,7 +102,7 @@
     "include": "resources/nsis/cleanup-models.nsh"
   },
   "dmg": {
-    "title": "OpenWhispr",
+    "title": "OpenWayl",
     "icon": "src/assets/icon.icns",
     "background": "src/assets/dmg-background.png",
     "window": {

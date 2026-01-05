@@ -27,15 +27,7 @@ class LlamaCppInstaller {
   }
 
   getBinaryName() {
-    // Cross-platform binary name resolution
-    switch (this.platform) {
-      case "win32":
-        return "llama-cli.exe";
-      case "darwin":
-      case "linux":
-      default:
-        return "llama-cli";
-    }
+    return this.platform === "win32" ? "llama-cli.exe" : "llama-cli";
   }
 
   getInstalledBinaryPath() {
@@ -47,7 +39,6 @@ class LlamaCppInstaller {
       // First check for system installation
       const systemInstalled = await this.checkSystemInstallation();
       if (systemInstalled) {
-        // Get the system path
         const systemPath = await this.getSystemBinaryPath();
         if (systemPath) {
           this.binPath = systemPath;
@@ -67,13 +58,11 @@ class LlamaCppInstaller {
 
   async getSystemBinaryPath() {
     return new Promise((resolve) => {
-      // Cross-platform command resolution
       const checkCmd = this.platform === "win32" ? "where" : "which";
       const binaryNames = this.platform === "win32" 
         ? ["llama-cli.exe", "llama.exe"]
         : ["llama-cli", "llama", "llama.cpp"];
       
-      // Try each possible binary name
       let found = false;
       let remaining = binaryNames.length;
       
@@ -146,120 +135,175 @@ class LlamaCppInstaller {
     }
   }
 
-  getReleaseUrl() {
-    // Map platform and arch to GitHub release asset names
-    const platformMap = {
-      darwin: {
-        x64: "llama-cli-macos-x64",
-        arm64: "llama-cli-macos-arm64",
-      },
-      linux: {
-        x64: "llama-cli-linux-x64",
-        arm64: "llama-cli-linux-arm64",
-      },
-      win32: {
-        x64: "llama-cli-windows-x64.exe",
-        arm64: "llama-cli-windows-arm64.exe",
-      },
+  async getLatestReleaseUrl() {
+    const apiOptions = {
+      hostname: "api.github.com",
+      path: "/repos/ggml-org/llama.cpp/releases/latest",
+      headers: { "User-Agent": "open-whispr-installer" },
     };
 
-    const assetName = platformMap[this.platform]?.[this.arch];
-    if (!assetName) {
-      throw new Error(`Unsupported platform: ${this.platform}-${this.arch}`);
-    }
+    return new Promise((resolve, reject) => {
+      https.get(apiOptions, (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to fetch release info: ${res.statusCode}`));
+          return;
+        }
 
-    // Using a specific release for stability
-    const releaseTag = "v0.1.0"; // Update this as needed
-    return `https://github.com/yourusername/llama-cpp-binaries/releases/download/${releaseTag}/${assetName}`;
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const release = JSON.parse(data);
+            const assets = release.assets || [];
+            let pattern = "";
+
+            if (this.platform === "linux" && this.arch === "x64") {
+              pattern = "bin-ubuntu-x64.tar.gz";
+            } else if (this.platform === "darwin") {
+              pattern = this.arch === "arm64" ? "bin-macos-arm64" : "bin-macos-x64";
+            } else if (this.platform === "win32") {
+              pattern = "bin-win-cpu-x64.zip";
+            } else {
+              reject(new Error(`Unsupported platform: ${this.platform}-${this.arch}`));
+              return;
+            }
+
+            const asset = assets.find((a) => a.name.includes(pattern));
+            if (asset) {
+              resolve(asset.browser_download_url);
+            } else {
+              reject(new Error(`No asset found for ${this.platform} ${this.arch} with pattern ${pattern}`));
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on("error", reject);
+    });
   }
 
-  async downloadBinary(url, destPath) {
+  async download(url, destPath) {
     return new Promise((resolve, reject) => {
       const file = createWriteStream(destPath);
       
       https.get(url, (response) => {
         if (response.statusCode === 302 || response.statusCode === 301) {
-          // Handle redirect
-          https.get(response.headers.location, (redirectResponse) => {
-            redirectResponse.pipe(file);
-            file.on("finish", () => {
-              file.close();
-              resolve();
-            });
-          }).on("error", reject);
-        } else if (response.statusCode === 200) {
-          response.pipe(file);
-          file.on("finish", () => {
-            file.close();
-            resolve();
-          });
-        } else {
-          reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
+          const redirectUrl = response.headers.location;
+          if (redirectUrl) {
+            this.download(redirectUrl, destPath).then(resolve).catch(reject);
+            return;
+          }
         }
+
+        if (response.statusCode !== 200) {
+          reject(new Error(`Download failed with status: ${response.statusCode}`));
+          return;
+        }
+
+        response.pipe(file);
+        
+        file.on("finish", () => {
+          file.close();
+          resolve();
+        });
+
+        file.on("error", (err) => {
+          fs.unlink(destPath, () => {});
+          reject(err);
+        });
       }).on("error", reject);
     });
   }
 
+  async extract(archivePath) {
+    await this.ensureInstallDir();
+    
+    if (archivePath.endsWith(".tar.gz")) {
+      await tar.x({
+        file: archivePath,
+        cwd: this.installDir,
+      });
+    } else if (archivePath.endsWith(".zip")) {
+      if (!unzipper) throw new Error("unzipper module not loaded");
+      await fs.createReadStream(archivePath)
+        .pipe(unzipper.Extract({ path: this.installDir }))
+        .promise();
+    } else {
+      throw new Error("Unsupported archive format");
+    }
+  }
+
   async install() {
     try {
+      // Check if already installed
+      if (await this.isInstalled()) {
+        return { success: true };
+      }
+
+      // Create install directory
       await this.ensureInstallDir();
-      
-      // For now, return a message about manual installation
-      // since we don't have a real binary distribution yet
-      return {
-        success: false,
-        message: "Please install llama.cpp manually using Homebrew (macOS) or from source. Run: brew install llama.cpp",
-      };
-      
-      // Future implementation:
-      // const url = this.getReleaseUrl();
-      // const binaryPath = this.getInstalledBinaryPath();
-      // 
-      // await this.downloadBinary(url, binaryPath);
-      // 
-      // // Make executable on Unix-like systems
-      // if (this.platform !== "win32") {
-      //   await fsPromises.chmod(binaryPath, 0o755);
-      // }
-      // 
-      // this.binPath = binaryPath;
-      // return { success: true, path: binaryPath };
+
+      // Download
+      console.log("Fetching latest release URL...");
+      const url = await this.getLatestReleaseUrl();
+      const archivePath = path.join(
+        this.installDir,
+        url.endsWith(".zip") ? "llama.zip" : "llama.tar.gz"
+      );
+
+      console.log(`Downloading llama.cpp from ${url}...`);
+      await this.download(url, archivePath);
+
+      // Extract
+      console.log("Extracting archive...");
+      await this.extract(archivePath);
+
+      // Clean up archive
+      await fsPromises.unlink(archivePath);
+
+      // Make binary executable on Unix
+      if (this.platform !== "win32") {
+        const binaryPath = this.getInstalledBinaryPath();
+        await fsPromises.chmod(binaryPath, 0o755);
+      }
+
+      // Verify installation
+      if (await this.isInstalled()) {
+        return { success: true };
+      } else {
+        throw new Error("Installation verification failed");
+      }
     } catch (error) {
-      return {
-        success: false,
-        message: `Installation failed: ${error.message}`,
+      console.error("llama.cpp installation error:", error);
+      return { 
+        success: false, 
+        error: error.message || "Installation failed" 
       };
     }
   }
 
   async uninstall() {
     try {
-      const binaryPath = this.getInstalledBinaryPath();
-      await fsPromises.unlink(binaryPath);
+      await fsPromises.rm(this.installDir, { recursive: true, force: true });
       this.binPath = null;
       return { success: true };
     } catch (error) {
-      return {
-        success: false,
-        message: `Uninstall failed: ${error.message}`,
+      return { 
+        success: false, 
+        error: error.message || "Uninstall failed" 
       };
     }
   }
 
   async getBinaryPath() {
-    // If we already have a path, use it
-    if (this.binPath) {
-      return this.binPath;
-    }
+    if (this.binPath) return this.binPath;
     
-    // Check for system installation first
     const systemPath = await this.getSystemBinaryPath();
     if (systemPath) {
       this.binPath = systemPath;
       return systemPath;
     }
     
-    // Fall back to local installation
     return this.getInstalledBinaryPath();
   }
 }

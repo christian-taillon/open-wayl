@@ -388,19 +388,27 @@ class ModelManager {
         "--no-display-prompt"
       ];
 
-      const process = spawn(this.llamaCppPath, args);
+      const env = { ...process.env };
+      if (process.platform === "linux" && this.llamaCppPath) {
+        const libPath = path.dirname(this.llamaCppPath);
+        env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH
+          ? `${libPath}:${env.LD_LIBRARY_PATH}`
+          : libPath;
+      }
+
+      const childProcess = spawn(this.llamaCppPath, args, { env });
       let output = "";
       let error = "";
 
-      process.stdout.on('data', (data) => {
+      childProcess.stdout.on('data', (data) => {
         output += data.toString();
       });
 
-      process.stderr.on('data', (data) => {
+      childProcess.stderr.on('data', (data) => {
         error += data.toString();
       });
 
-      process.on('close', (code) => {
+      childProcess.on('close', (code) => {
         if (code !== 0) {
           reject(new ModelError(
             `Inference failed with code ${code}: ${error}`,
@@ -412,7 +420,7 @@ class ModelManager {
         }
       });
 
-      process.on('error', (err) => {
+      childProcess.on('error', (err) => {
         reject(new ModelError(
           `Failed to start inference: ${err.message}`,
           "INFERENCE_START_FAILED",

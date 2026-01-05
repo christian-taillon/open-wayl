@@ -296,8 +296,16 @@ class ModelManager {
       "-t", finalOptions.threads.toString(),
     ];
 
+    const env = { ...process.env };
+    if (process.platform === "linux" && this.llamaCppPath) {
+      const libPath = path.dirname(this.llamaCppPath);
+      env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH
+        ? `${libPath}:${env.LD_LIBRARY_PATH}`
+        : libPath;
+    }
+
     return new Promise((resolve, reject) => {
-      const llamaProcess = spawn(this.llamaCppPath!, args);
+      const llamaProcess = spawn(this.llamaCppPath!, args, { env });
       let output = "";
       let error = "";
 

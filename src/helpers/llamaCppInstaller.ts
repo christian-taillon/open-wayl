@@ -86,18 +86,51 @@ class LlamaCppInstaller {
     });
   }
 
-  getDownloadUrl(): string {
-    const baseUrl = "https://github.com/ggerganov/llama.cpp/releases/latest/download";
-    
-    if (this.platform === "darwin") {
-      return `${baseUrl}/llama-${this.arch === "arm64" ? "arm64" : "x64"}-apple-darwin.zip`;
-    } else if (this.platform === "linux") {
-      return `${baseUrl}/llama-x64-linux.tar.gz`;
-    } else if (this.platform === "win32") {
-      return `${baseUrl}/llama-x64-windows.zip`;
-    }
-    
-    throw new Error(`Unsupported platform: ${this.platform}`);
+  async getLatestReleaseUrl(): Promise<string> {
+    const apiOptions = {
+      hostname: "api.github.com",
+      path: "/repos/ggml-org/llama.cpp/releases/latest",
+      headers: { "User-Agent": "open-whispr-installer" },
+    };
+
+    return new Promise((resolve, reject) => {
+      https.get(apiOptions, (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to fetch release info: ${res.statusCode}`));
+          return;
+        }
+
+        let data = "";
+        res.on("data", (chunk) => (data += chunk));
+        res.on("end", () => {
+          try {
+            const release = JSON.parse(data);
+            const assets = release.assets || [];
+            let pattern = "";
+
+            if (this.platform === "linux" && this.arch === "x64") {
+              pattern = "bin-ubuntu-x64.tar.gz";
+            } else if (this.platform === "darwin") {
+              pattern = this.arch === "arm64" ? "bin-macos-arm64" : "bin-macos-x64";
+            } else if (this.platform === "win32") {
+              pattern = "bin-win-cpu-x64.zip";
+            } else {
+              reject(new Error(`Unsupported platform: ${this.platform}-${this.arch}`));
+              return;
+            }
+
+            const asset = assets.find((a: any) => a.name.includes(pattern));
+            if (asset) {
+              resolve(asset.browser_download_url);
+            } else {
+              reject(new Error(`No asset found for ${this.platform} ${this.arch} with pattern ${pattern}`));
+            }
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on("error", reject);
+    });
   }
 
   async download(url: string, destPath: string): Promise<void> {
@@ -161,7 +194,7 @@ class LlamaCppInstaller {
       await this.ensureInstallDir();
 
       // Download
-      const url = this.getDownloadUrl();
+      const url = await this.getLatestReleaseUrl();
       const archivePath = path.join(
         this.installDir,
         url.endsWith(".zip") ? "llama.zip" : "llama.tar.gz"

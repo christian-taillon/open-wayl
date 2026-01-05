@@ -1,14 +1,27 @@
-# OpenWhispr
+# OpenWayl
 
-An open source desktop dictation application that converts speech to text using OpenAI Whisper. Features both local and cloud processing options for maximum flexibility and privacy.
+A Linux-first desktop dictation application optimized for **Wayland**, based on OpenWhispr. It solves common Wayland isolation issues (global hotkeys, clipboard pasting) using standard Linux tools (`ydotool`, systemd services, and custom shortcuts).
+
+> **Note:** This is a specialized fork of [OpenWhispr](https://github.com/HeroTools/open-whispr) designed for modern Linux environments (GNOME, KDE, Hyprland) where Electron apps struggle with global shortcuts and automation.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details. This means you can freely use, modify, and distribute this software for personal or commercial purposes.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Wayland Configuration (Important!)
+
+On Wayland, apps cannot register global hotkeys or paste text arbitrarily due to security isolation. OpenWayl circumvents this using:
+1. **ydotool** for input simulation (auto-pasting).
+2. **Custom Desktop Shortcuts** calling a script to toggle the recording state.
+
+👉 **[Read the Wayland Setup Guide](WAYLAND_SETUP.md)** 👈
+
+You **must** follow the setup guide to enable global hotkeys and auto-pasting on GNOME, KDE, or Hyprland.
 
 ## Features
 
-- 🎤 **Global Hotkey**: Customizable hotkey to start/stop dictation from anywhere (default: backtick `)
+- 🐧 **Wayland Optimized**: specialized scripts and services for modern Linux desktops
+- 🎤 **Global Hotkey**: Toggle dictation via `scripts/wayland-toggle.sh` (GNOME/KDE compatible)
 - 🤖 **Multi-Provider AI Processing**: Choose between OpenAI, Anthropic Claude, Google Gemini, or local models
 - 🎯 **Agent Naming**: Personalize your AI assistant with a custom name for natural interactions
 - 🧠 **Latest AI Models** (September 2025):
@@ -23,17 +36,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🗄️ **Transcription History**: SQLite database stores all your transcriptions locally
 - 🔧 **Model Management**: Download and manage local Whisper models (tiny, base, small, medium, large, turbo)
 - 🧹 **Model Cleanup**: One-click removal of cached Whisper models with uninstall hooks to keep disks tidy
-- 🌐 **Cross-Platform**: Works on macOS, Windows, and Linux
-- ⚡ **Automatic Pasting**: Transcribed text automatically pastes at your cursor location
+- ⚡ **Automatic Pasting**: Transcribed text automatically pastes at your cursor location (via `ydotool` on Wayland)
 - 🖱️ **Draggable Interface**: Move the dictation panel anywhere on your screen
 - 🔄 **OpenAI Responses API**: Using the latest Responses API for improved performance
-- 🌐 **Globe Key Toggle (macOS)**: Optional Fn/Globe key listener for a hardware-level dictation trigger
 
 ## Prerequisites
 
-- **Node.js 18+** and npm (Download from [nodejs.org](https://nodejs.org/))
-- **macOS 10.15+**, **Windows 10+**, or **Linux**
-- On macOS, Globe key support requires the Xcode Command Line Tools (`xcode-select --install`) so the bundled Swift helper can run
+- **Linux** (Wayland or X11)
+- **Node.js 18+** (for building)
+- **ydotool** (Required for Wayland auto-paste)
 - **Python 3.7+** (Optional - the app can install it automatically for local Whisper processing)
 
 ## Quick Start
@@ -78,19 +89,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you want to build a standalone app for personal use:
 
 ```bash
-# Build without code signing (no certificates required)
+# Build without code signing
 npm run pack
-
-# The unsigned app will be in: dist/mac-arm64/OpenWhispr.app (macOS)
-# or dist/win-unpacked/OpenWhispr.exe (Windows)
-# or dist/linux-unpacked/open-whispr (Linux)
+# The app will be in: dist/linux-unpacked/open-wayl
 ```
-
-**Note**: On macOS, you may see a security warning when first opening the unsigned app. Right-click and select "Open" to bypass this.
 
 #### Linux (Multiple Package Formats)
 
-OpenWhispr now supports multiple Linux package formats for maximum compatibility:
+OpenWayl supports multiple Linux package formats for maximum compatibility:
 
 **Available Formats**:
 - `.deb` - Debian, Ubuntu, Linux Mint, Pop!_OS
@@ -106,10 +112,10 @@ OpenWhispr now supports multiple Linux package formats for maximum compatibility
 npm run build:linux
 
 # Find packages in dist/:
-# - OpenWhispr-x.x.x-linux-x64.AppImage
-# - OpenWhispr-x.x.x-linux-x64.deb
-# - OpenWhispr-x.x.x-linux-x64.rpm
-# - OpenWhispr-x.x.x-linux-x64.tar.gz
+# - OpenWayl-x.x.x-linux-x64.AppImage
+# - OpenWayl-x.x.x-linux-x64.deb
+# - OpenWayl-x.x.x-linux-x64.rpm
+# - OpenWayl-x.x.x-linux-x64.tar.gz
 ```
 
 **Optional: Building Flatpak** (requires additional setup):
@@ -132,67 +138,43 @@ npm run build:linux
 
 ```bash
 # Debian/Ubuntu
-sudo apt install ./dist/OpenWhispr-*-linux-x64.deb
+sudo apt install ./dist/OpenWayl-*-linux-x64.deb
 
 # Fedora/RHEL
-sudo dnf install ./dist/OpenWhispr-*-linux-x64.rpm
+sudo dnf install ./dist/OpenWayl-*-linux-x64.rpm
 
 # Universal tar.gz (no root required)
-tar -xzf dist/OpenWhispr-*-linux-x64.tar.gz
-cd OpenWhispr-*/
-./openwhispr
+tar -xzf dist/OpenWayl-*-linux-x64.tar.gz
+cd OpenWayl-*/
+./open-wayl
 
 # Flatpak
-flatpak install --user ./dist/OpenWhispr-*-linux-x64.flatpak
+flatpak install --user ./dist/OpenWayl-*-linux-x64.flatpak
 
 # AppImage (existing method)
-chmod +x dist/OpenWhispr-*.AppImage
-./dist/OpenWhispr-*.AppImage
+chmod +x dist/OpenWayl-*.AppImage
+./dist/OpenWayl-*.AppImage
 ```
 
 **Optional Dependencies for Automatic Paste**:
 
-The clipboard paste feature requires platform-specific tools:
+The clipboard paste feature requires `ydotool` on Wayland.
 
-**X11 (Traditional Linux Desktop)**:
 ```bash
 # Debian/Ubuntu
-sudo apt install xdotool
-
-# Fedora/RHEL
-sudo dnf install xdotool
+sudo apt install ydotool
 
 # Arch
-sudo pacman -S xdotool
+sudo pacman -S ydotool
 ```
 
-**Wayland (Modern Linux Desktop)**:
-```bash
-# Debian/Ubuntu
-sudo apt install wtype
+> ℹ️ **Note**: See [WAYLAND_SETUP.md](WAYLAND_SETUP.md) for configuring the ydotool service, which is required for auto-paste to work.
 
-# Fedora/RHEL
-sudo dnf install wtype
-
-# Arch
-sudo pacman -S wtype
-
-# Alternative: ydotool (requires uinput permissions)
-sudo apt install ydotool  # or equivalent for your distro
-```
-
-> ℹ️ **Note**: OpenWhispr automatically detects your display server (X11 vs Wayland) and uses the appropriate paste tool. If no paste tool is installed, text will still be copied to the clipboard - you'll just need to paste manually with Ctrl+V.
-
-> 🔒 **Flatpak Security**: The Flatpak package includes sandboxing with explicit permissions for microphone, clipboard, and file access. See [electron-builder.json](electron-builder.json) for the complete permission list.
+> 🔒 **Flatpak Security**: The Flatpak package includes sandboxing with explicit permissions.
 
 ### Building for Distribution
 
-For maintainers who need to distribute signed builds:
-
 ```bash
-# Requires code signing certificates and notarization setup
-npm run build:mac    # macOS (requires Apple Developer account)
-npm run build:win    # Windows (requires code signing cert)
 npm run build:linux  # Linux
 ```
 
