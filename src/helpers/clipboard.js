@@ -1,5 +1,8 @@
 const { clipboard } = require("electron");
 const { spawn, spawnSync } = require("child_process");
+const fs = require("fs");
+const path = require("path");
+const os = require("os");
 
 class ClipboardManager {
   constructor() {
@@ -171,21 +174,31 @@ class ClipboardManager {
     const isWayland =
       (process.env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" ||
       !!process.env.WAYLAND_DISPLAY;
+    
+    // Check for GNOME, where wtype is typically not supported
+    const isGnome = (process.env.XDG_CURRENT_DESKTOP || "").toUpperCase().includes("GNOME");
 
     // Define paste tools in preference order based on display server
-    const candidates = isWayland
-      ? [
-          // Wayland tools
-          { cmd: "wtype", args: ["-M", "ctrl", "-p", "v", "-m", "ctrl"] },
-          // ydotool requires uinput permissions but included as fallback
-          { cmd: "ydotool", args: ["key", "29:1", "47:1", "47:0", "29:0"] },
-          // X11 fallback for XWayland
-          { cmd: "xdotool", args: ["key", "ctrl+v"] },
-        ]
-      : [
-          // X11 tools
-          { cmd: "xdotool", args: ["key", "ctrl+v"] },
-        ];
+    let candidates = [];
+    
+    if (isWayland) {
+      // On GNOME Wayland, wtype is not supported by the compositor (Mutter).
+      // We skip it to fall back to xdotool (which works for XWayland apps)
+      // or ydotool if configured.
+      if (!isGnome) {
+        candidates.push({ cmd: "wtype", args: ["-M", "ctrl", "-p", "v", "-m", "ctrl"] });
+      }
+      
+      candidates.push(
+        // ydotool requires uinput permissions but included as fallback
+        { cmd: "ydotool", args: ["key", "29:1", "47:1", "47:0", "29:0"] },
+        // X11 fallback for XWayland
+        { cmd: "xdotool", args: ["key", "ctrl+v"] }
+      );
+    } else {
+      // X11 tools
+      candidates.push({ cmd: "xdotool", args: ["key", "ctrl+v"] });
+    }
 
     // Filter to only available tools
     const available = candidates.filter((c) => commandExists(c.cmd));
@@ -193,7 +206,18 @@ class ClipboardManager {
     // Attempt paste with a specific tool
     const pasteWith = (tool) =>
       new Promise((resolve, reject) => {
-        const proc = spawn(tool.cmd, tool.args);
+        const options = {};
+
+        // Special handling for ydotool socket
+        if (tool.cmd === "ydotool") {
+          const userSocket = path.join(os.homedir(), ".ydotool_socket");
+          if (fs.existsSync(userSocket)) {
+            options.env = { ...process.env, YDOTOOL_SOCKET: userSocket };
+            this.safeLog(`Using custom ydotool socket: ${userSocket}`);
+          }
+        }
+
+        const proc = spawn(tool.cmd, tool.args, options);
 
         let timedOut = false;
         const timeoutId = setTimeout(() => {
@@ -213,8 +237,11 @@ class ClipboardManager {
           clearTimeout(timeoutId);
 
           if (code === 0) {
-            // Restore original clipboard after successful paste
-            setTimeout(() => clipboard.writeText(originalClipboard), 100);
+            // On Linux, we do not restore the original clipboard.
+            // This is because paste operations on Wayland/X11 are often "fire and forget"
+            // and we can't guarantee the target app has received the paste event yet.
+            // It is better to leave the dictated text in the clipboard so the user
+            // can manually paste it if the automatic paste fails.
             resolve();
           } else {
             reject(new Error(`${tool.cmd} exited with code ${code}`));
