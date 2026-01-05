@@ -8,23 +8,64 @@ A Linux-first desktop dictation application optimized for **Wayland**, based on 
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## Wayland Configuration (Important!)
+## 🐧 Wayland Setup (Required for Linux Users)
 
-On Wayland, apps cannot register global hotkeys or paste text arbitrarily due to security isolation. OpenWayl circumvents this using:
-1. **ydotool** for input simulation (auto-pasting).
-2. **Custom Desktop Shortcuts** calling a script to toggle the recording state.
+**On Wayland, global hotkeys and automatic text pasting require additional configuration.** Due to Wayland's security isolation, Electron apps cannot register system-wide shortcuts or simulate keyboard input directly.
 
-👉 **[Read the Wayland Setup Guide](WAYLAND_SETUP.md)** 👈
+OpenWayl solves this with two key components:
 
-You **must** follow the setup guide to enable global hotkeys and auto-pasting on GNOME, KDE, or Hyprland.
+1. **ydotool** - For simulating keyboard input (auto-pasting)
+2. **Custom Desktop Shortcuts** - For global dictation toggle
+
+### Quick Setup Steps
+
+**1. Install ydotool:**
+```bash
+# Arch/Manjaro
+sudo pacman -S ydotool
+
+# Debian/Ubuntu
+sudo apt install ydotool
+```
+
+**2. Configure ydotool service:**
+```bash
+# Add your user to input group
+sudo usermod -aG input $USER
+# Log out and back in
+
+# Create systemd service
+mkdir -p ~/.config/systemd/user/
+# Create service file at ~/.config/systemd/user/ydotool.service
+# (See full guide below for service configuration)
+
+# Enable service
+systemctl --user enable --now ydotool.service
+```
+
+**3. Set up global hotkey in GNOME:**
+- Go to **Settings > Keyboard > Custom Shortcuts**
+- **Name:** OpenWayl Toggle
+- **Command:** `/home/christian/github/open-whispr/scripts/wayland-toggle.sh`
+- **Shortcut:** Super+Space (or your preferred key)
+
+👉 **[Full Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md)** 👈
+
+**The setup guide covers:**
+- Complete ydotool installation and udev rules
+- systemd service configuration with troubleshooting
+- GNOME/KDE/Hyprland shortcut setup
+- Common issues and fixes
+
+**Without this setup, global hotkeys won't work and text won't auto-paste on Wayland.**
 
 ## Features
 
-- 🐧 **Wayland Optimized**: specialized scripts and services for modern Linux desktops
-- 🎤 **Global Hotkey**: Toggle dictation via `scripts/wayland-toggle.sh` (GNOME/KDE compatible)
+- 🐧 **Wayland Optimized**: Specialized scripts and systemd services for modern Linux desktops
+- 🎤 **Global Hotkey**: Toggle dictation via custom desktop shortcuts (Wayland) or native global hotkeys (X11/macOS/Windows)
 - 🤖 **Multi-Provider AI Processing**: Choose between OpenAI, Anthropic Claude, Google Gemini, or local models
 - 🎯 **Agent Naming**: Personalize your AI assistant with a custom name for natural interactions
-- 🧠 **Latest AI Models** (September 2025):
+- 🧠 **Latest AI Models** (January 2026):
   - **OpenAI**: GPT-5 Series, GPT-4.1 Series, o-series reasoning models (o3/o4-mini)
   - **Anthropic**: Claude Opus 4.1, Claude Sonnet 4, Claude 3.5 Sonnet/Haiku
   - **Google**: Gemini 2.5 Pro/Flash/Flash-Lite with thinking capability, Gemini 2.0 Flash
@@ -36,53 +77,66 @@ You **must** follow the setup guide to enable global hotkeys and auto-pasting on
 - 🗄️ **Transcription History**: SQLite database stores all your transcriptions locally
 - 🔧 **Model Management**: Download and manage local Whisper models (tiny, base, small, medium, large, turbo)
 - 🧹 **Model Cleanup**: One-click removal of cached Whisper models with uninstall hooks to keep disks tidy
-- ⚡ **Automatic Pasting**: Transcribed text automatically pastes at your cursor location (via `ydotool` on Wayland)
+- ⚡ **Automatic Pasting**: Transcribed text automatically pastes at your cursor location (via `ydotool` on Wayland, native on other platforms)
 - 🖱️ **Draggable Interface**: Move the dictation panel anywhere on your screen
 - 🔄 **OpenAI Responses API**: Using the latest Responses API for improved performance
+- ⌨️ **macOS Globe/Fn Key**: Native support for Globe/Fn key shortcuts on Mac
 
 ## Prerequisites
 
-- **Linux** (Wayland or X11)
-- **Node.js 18+** (for building)
-- **ydotool** (Required for Wayland auto-paste)
+- **Linux** (Wayland or X11) - Primary target platform
+- **Node.js 18+** (for building from source)
+- **ydotool** (Required for Wayland auto-paste - see setup above)
 - **Python 3.7+** (Optional - the app can install it automatically for local Whisper processing)
+
+**Platform Support:**
+- ✅ **Linux (Wayland)**: Fully optimized with ydotool and systemd integration
+- ✅ **Linux (X11)**: Native global hotkey and paste support
+- ✅ **macOS**: Native support with Globe/Fn key shortcuts
+- ✅ **Windows**: Native support with system tray integration
 
 ## Quick Start
 
 ### For Personal Use (Recommended)
 
 1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/HeroTools/open-whispr.git
-   cd open-whispr
-   ```
+    ```bash
+    git clone https://github.com/christian-taillon/open-wayl.git
+    cd open-wayl
+    ```
 
 2. **Install dependencies**:
-   ```bash
-   npm install
-   ```
+    ```bash
+    npm install
+    ```
 
-3. **Optional: Set up API keys** (only needed for cloud processing):
-   
-   **Method A - Environment file**:
-   ```bash
-   cp env.example .env
-   # Edit .env and add your API keys:
-   # OPENAI_API_KEY=your_openai_key
-   # ANTHROPIC_API_KEY=your_anthropic_key  
-   # GEMINI_API_KEY=your_gemini_key
-   ```
-   
-   **Method B - In-app configuration**:
-   - Run the app and configure API keys through the Control Panel
-   - Keys are automatically saved and persist across app restarts
+3. **For Wayland users: Configure ydotool and global hotkey**
+    - Follow the **[Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md)** above
+    - Install ydotool, set up the systemd service, and configure desktop shortcuts
 
-4. **Run the application**:
-   ```bash
-   npm run dev  # Development mode with hot reload
-   # OR
-   npm start    # Production mode
-   ```
+4. **Optional: Set up API keys** (only needed for cloud processing):
+    
+    **Method A - Environment file**:
+    ```bash
+    cp env.example .env
+    # Edit .env and add your API keys:
+    # OPENAI_API_KEY=your_openai_key
+    # ANTHROPIC_API_KEY=your_anthropic_key
+    # GEMINI_API_KEY=your_gemini_key
+    ```
+    
+    **Method B - In-app configuration**:
+    - Run the app and configure API keys through the Control Panel
+    - Keys are automatically saved and persist across app restarts
+
+5. **Run the application**:
+    ```bash
+    npm run dev  # Development mode with hot reload
+    # OR
+    npm start    # Production mode
+    ```
+
+**After starting**: Use the hotkey (default: backtick `) or your configured Wayland shortcut to toggle dictation.
 
 ### Building for Personal Use (Optional)
 
@@ -181,31 +235,41 @@ npm run build:linux  # Linux
 ### First Time Setup
 
 1. **Choose Processing Method**:
-   - **Local Processing**: Download Whisper models for completely private transcription
-   - **Cloud Processing**: Use OpenAI's API for faster transcription (requires API key)
+    - **Local Processing**: Download Whisper models for completely private transcription
+    - **Cloud Processing**: Use OpenAI's API for faster transcription (requires API key)
 
 2. **Grant Permissions**:
-   - **Microphone Access**: Required for voice recording
-   - **Accessibility Permissions**: Required for automatic text pasting (macOS)
+    - **Microphone Access**: Required for voice recording
+    - **Accessibility Permissions**: Required for automatic text pasting (macOS)
+    - **Wayland Setup**: Install ydotool and configure desktop shortcuts (Linux Wayland)
 
 3. **Name Your Agent**: Give your AI assistant a personal name (e.g., "Assistant", "Jarvis", "Alex")
-   - Makes interactions feel more natural and conversational
-   - Helps distinguish between giving commands and regular dictation
-   - Can be changed anytime in settings
+    - Makes interactions feel more natural and conversational
+    - Helps distinguish between giving commands and regular dictation
+    - Can be changed anytime in settings
 
 4. **Configure Global Hotkey**: Default is backtick (`) but can be customized
+   - **Wayland users**: Must configure a desktop shortcut in GNOME/KDE settings
+   - **macOS/Linux (X11)**: Global hotkey works natively through the app
+   - **Windows**: Global hotkey works natively through the app
 
 ## Usage
 
 ### Basic Dictation
 1. **Start the app** - A small draggable panel appears on your screen
-2. **Press your hotkey** (default: backtick `) - Start dictating (panel shows recording animation)
-3. **Press your hotkey again** - Stop dictation and begin transcription (panel shows processing animation)
+2. **Press your hotkey** (default: backtick `) to start recording
+   - **Wayland users**: Configure a custom desktop shortcut (see Wayland Setup above)
+   - **macOS/Linux (X11)**: Global hotkey works natively
+3. **Press your hotkey again** - Stop recording and begin transcription
 4. **Text appears** - Transcribed text is automatically pasted at your cursor location
 5. **Drag the panel** - Click and drag to move the dictation panel anywhere on your screen
 
+**Note**: On Wayland, the hotkey is handled by your desktop environment (GNOME, KDE, etc.), not by the app itself.
+
 ### Control Panel
-- **Access**: Right-click the tray icon (macOS) or through the system menu
+- **Access**: Right-click the system tray icon or use keyboard shortcuts
+  - **macOS**: Click tray icon to show menu
+  - **Linux/Windows**: Click or right-click tray icon
 - **Configure**: Choose between local and cloud processing
 - **History**: View, copy, and delete past transcriptions
 - **Models**: Download and manage local Whisper models
@@ -244,53 +308,145 @@ Once you've named your agent during setup, you can interact with it using multip
 The AI automatically detects when you're giving it commands versus dictating regular text, and removes agent name references from the final output.
 
 ### Processing Options
-- **Local Processing**: 
+- **Local Processing**:
   - Install Whisper automatically through the Control Panel
-  - Download models: tiny (fastest), base (recommended), small, medium, large (best quality)
+  - Download models: tiny (39MB, fastest), base (74MB, recommended), small (244MB), medium (769MB), large (1.5GB, best quality), turbo (809MB, fast with good quality)
   - Complete privacy - audio never leaves your device
+  - Works offline after model download
 - **Cloud Processing**:
   - Requires OpenAI API key
   - Faster processing
   - Uses OpenAI's Whisper API
+  - Requires internet connection
 
 ## Project Structure
 
 ```
-open-whispr/
-├── main.js              # Electron main process & IPC handlers
-├── preload.js           # Electron preload script & API bridge
-├── whisper_bridge.py    # Python script for local Whisper processing
-├── setup.js             # First-time setup script
-├── package.json         # Dependencies and scripts
-├── env.example          # Environment variables template
-├── CHANGELOG.md         # Project changelog
-├── src/
-│   ├── App.jsx          # Main dictation interface
-│   ├── main.jsx         # React entry point
-│   ├── index.html       # Vite HTML template
-│   ├── index.css        # Tailwind CSS v4 configuration
-│   ├── vite.config.js   # Vite configuration
-│   ├── components/
-│   │   ├── ControlPanel.tsx     # Settings and history UI
-│   │   ├── OnboardingFlow.tsx   # First-time setup wizard
-│   │   ├── SettingsPage.tsx     # Settings interface
-│   │   ├── ui/                  # shadcn/ui components
-│   │   │   ├── button.tsx
-│   │   │   ├── card.tsx
-│   │   │   ├── input.tsx
-│   │   │   ├── LoadingDots.tsx
-│   │   │   ├── DotFlashing.tsx
-│   │   │   ├── Toast.tsx
-│   │   │   ├── toggle.tsx
-│   │   │   └── tooltip.tsx
-│   │   └── lib/
-│   │       └── utils.ts         # Utility functions
-│   ├── services/
-│   │   └── ReasoningService.ts  # Multi-provider AI processing (OpenAI/Anthropic/Gemini)
-│   ├── utils/
-│   │   └── agentName.ts         # Agent name management utility
-│   └── components.json          # shadcn/ui configuration
-└── assets/                      # App icons and resources
+open-wayl/
+├── main.js                    # Electron main process entry point
+├── preload.js                 # Electron preload script & IPC API bridge
+├── whisper_bridge.py          # Python script for local Whisper processing
+├── setup.js                   # First-time setup wizard
+├── package.json               # Dependencies and npm scripts
+├── env.example                # Environment variables template
+├── CHANGELOG.md               # Project changelog
+├── electron-builder.json      # Electron Builder configuration
+├── scripts/                   # Setup and utility scripts
+│   ├── wayland-toggle.sh      # Wayland hotkey toggle script
+│   ├── setup-linux-autostart.sh  # Linux autostart configuration
+│   ├── complete-uninstall.sh  # Cleanup and uninstall helper
+│   └── build-globe-listener.js  # macOS Globe key listener builder
+├── resources/                 # Platform-specific resources
+│   ├── linux/                 # Linux uninstall scripts
+│   ├── mac/                   # macOS entitlements and plist files
+│   ├── nsis/                  # Windows installer scripts
+│   └── macos-globe-listener.swift  # macOS Globe/Fn key listener
+└── src/                       # Main application source
+    ├── App.jsx                # Main dictation interface
+    ├── main.jsx               # React entry point
+    ├── index.html             # Vite HTML template
+    ├── index.css              # Tailwind CSS v4 configuration
+    ├── vite.config.mjs        # Vite configuration
+    ├── components/            # React components
+    │   ├── ControlPanel.tsx   # Settings and history UI
+    │   ├── OnboardingFlow.tsx # First-time setup wizard
+    │   ├── SettingsPage.tsx   # Full settings interface
+    │   ├── SettingsModal.tsx  # Settings dialog wrapper
+    │   ├── WhisperModelPicker.tsx  # Model selection and download
+    │   ├── UnifiedModelPicker.tsx  # Unified model selector
+    │   ├── AIModelSelectorEnhanced.tsx  # AI model selector with providers
+    │   ├── TitleBar.tsx       # Window title bar
+    │   ├── WindowControls.tsx # Window control buttons
+    │   ├── ui/                # shadcn/ui components (25+ components)
+    │   │   ├── alert.tsx
+    │   │   ├── ApiKeyInput.tsx
+    │   │   ├── badge.tsx
+    │   │   ├── button.tsx
+    │   │   ├── card.tsx
+    │   │   ├── dialog.tsx
+    │   │   ├── DotFlashing.tsx
+    │   │   ├── dropdown-menu.tsx
+    │   │   ├── input.tsx
+    │   │   ├── Keyboard.tsx
+    │   │   ├── label.tsx
+    │   │   ├── LanguageSelector.tsx
+    │   │   ├── LoadingDots.tsx
+    │   │   ├── PermissionCard.tsx
+    │   │   ├── ProcessingModeSelector.tsx
+    │   │   ├── progress.tsx
+    │   │   ├── PromptStudio.tsx
+    │   │   ├── select.tsx
+    │   │   ├── SettingsSection.tsx
+    │   │   ├── SidebarModal.tsx
+    │   │   ├── StepProgress.tsx
+    │   │   ├── SupportDropdown.tsx
+    │   │   ├── tabs.tsx
+    │   │   ├── textarea.tsx
+    │   │   ├── Toast.tsx
+    │   │   ├── toggle.tsx
+    │   │   ├── tooltip.tsx
+    │   │   └── TranscriptionItem.tsx
+    │   └── lib/
+    │       └── utils.ts        # Utility functions
+    ├── config/                # Configuration files
+    │   ├── aiProvidersConfig.ts    # AI provider configuration
+    │   ├── constants.ts             # Application constants
+    │   └── InferenceConfig.ts       # Inference service config
+    ├── helpers/               # Main process helper modules
+    │   ├── audioManager.js    # Audio device management
+    │   ├── clipboard.js       # Cross-platform clipboard operations
+    │   ├── database.js        # SQLite database operations
+    │   ├── debugLogger.js     # Debug logging system
+    │   ├── devServerManager.js  # Vite dev server integration
+    │   ├── dragManager.js     # Window dragging functionality
+    │   ├── environment.js     # Environment variable management
+    │   ├── globeKeyManager.js # macOS Globe/Fn key handling
+    │   ├── hotkeyManager.js   # Global hotkey registration
+    │   ├── ipcHandlers.js     # Centralized IPC handlers
+    │   ├── menuManager.js     # Application menu management
+    │   ├── ModelManager.ts    # Model download and management
+    │   ├── modelManagerBridge.js  # Model manager bridge
+    │   ├── pythonInstaller.js     # Python auto-installation
+    │   ├── tray.js            # System tray icon and menu
+    │   ├── whisper.js         # Whisper Python bridge
+    │   ├── windowConfig.js    # Window configuration
+    │   └── windowManager.js    # Window creation and lifecycle
+    ├── hooks/                 # React hooks
+    │   ├── useAudioRecording.js   # MediaRecorder API wrapper
+    │   ├── useClipboard.ts         # Clipboard operations
+    │   ├── useDialogs.ts           # Electron dialogs
+    │   ├── useHotkey.js            # Hotkey state management
+    │   ├── useLocalStorage.ts      # Type-safe localStorage
+    │   ├── useLocalModels.ts       # Local model management
+    │   ├── usePermissions.ts       # Permission checks
+    │   ├── usePython.ts            # Python installation state
+    │   ├── useSettings.ts          # Application settings
+    │   ├── useWhisper.ts           # Whisper model management
+    │   └── useWindowDrag.js        # Window dragging logic
+    ├── models/                # Data models
+    │   ├── ModelRegistry.ts        # Model registry interface
+    │   └── modelRegistryData.json  # Model data cache
+    ├── services/              # Service layer
+    │   ├── ReasoningService.ts     # AI processing service
+    │   ├── BaseReasoningService.ts  # Base AI service class
+    │   ├── LocalReasoningService.ts # Local AI processing
+    │   └── localReasoningBridge.js # Local AI bridge
+    ├── stores/                # State management
+    │   └── transcriptionStore.ts   # Transcription history store
+    ├── types/                 # TypeScript definitions
+    │   └── electron.ts            # Electron type definitions
+    ├── utils/                 # Utility modules
+    │   ├── agentName.ts           # Agent name management
+    │   ├── debugLoggerRenderer.js # Renderer debug logging
+    │   ├── formatBytes.ts         # File size formatting
+    │   ├── hotkeys.ts             # Hotkey utilities
+    │   ├── languages.ts           # Language definitions (58 langs)
+    │   ├── process.js             # Process utilities
+    │   ├── retry.ts               # Retry logic with backoff
+    │   └── SecureCache.ts         # Secure caching for API keys
+    ├── components.json        # shadcn/ui configuration
+    ├── eslint.config.js       # ESLint configuration
+    └── updater.js             # Auto-update manager
 ```
 
 ## Technology Stack
@@ -303,6 +459,8 @@ open-whispr/
 - **Speech-to-Text**: OpenAI Whisper (local models + API)
 - **Local Processing**: Python with OpenAI Whisper package
 - **Icons**: Lucide React for consistent iconography
+- **Wayland Integration**: ydotool, systemd, desktop shortcuts (Linux)
+- **macOS Integration**: Swift (Globe/Fn key), AppleScript (clipboard)
 
 ## Development
 
@@ -320,6 +478,7 @@ open-whispr/
 - `npm run dist` - Build and package with signing
 - `npm run lint` - Run ESLint
 - `npm run preview` - Preview production build
+- `npm run clean` - Clean build artifacts and temporary files
 
 ### Architecture
 
@@ -389,7 +548,7 @@ DEBUG=false
 
 ### Local Whisper Setup
 
-For local processing, OpenWhispr offers automated setup:
+For local processing, OpenWayl offers automated setup:
 
 1. **Automatic Python Installation** (if needed):
    - The app will detect if Python is missing
@@ -410,18 +569,19 @@ For local processing, OpenWhispr offers automated setup:
 ### Customization
 
 - **Hotkey**: Change in the Control Panel (default: backtick `) - fully customizable
-- **Panel Position**: Drag the dictation panel to any location on your screen`
+- **Panel Position**: Drag the dictation panel to any location on your screen
 - **Processing Method**: Choose local or cloud in Control Panel
 - **Whisper Model**: Select quality vs speed in Control Panel
 - **UI Theme**: Edit CSS variables in `src/index.css`
 - **Window Size**: Adjust dimensions in `main.js`
 - **Database**: Transcriptions stored in user data directory
+- **ydotool Socket**: Customize socket path in systemd service (Linux Wayland)
 
 ## Contributing
 
 We welcome contributions! Please follow these steps:
 
-1. Fork the repository
+1. Fork the repository at [https://github.com/christian-taillon/open-wayl](https://github.com/christian-taillon/open-wayl)
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
@@ -433,15 +593,17 @@ We welcome contributions! Please follow these steps:
 - Follow the existing code style
 - Update documentation as needed
 - Test on your target platform before submitting
+- For Wayland-specific features, test on GNOME, KDE, or Hyprland
 ## Security
 
-OpenWhispr is designed with privacy and security in mind:
+OpenWayl is designed with privacy and security in mind:
 
 - **Local Processing Option**: Keep your voice data completely private
 - **No Analytics**: We don't collect any usage data or telemetry
 - **Open Source**: All code is available for review
 - **Secure Storage**: API keys are stored securely in your system's keychain/credential manager
 - **Minimal Permissions**: Only requests necessary permissions (microphone, accessibility)
+- **Wayland-Safe**: Uses standard Linux tools (ydotool, systemd) for input simulation without compromising security
 
 ## Troubleshooting
 
@@ -449,9 +611,9 @@ OpenWhispr is designed with privacy and security in mind:
 
 1. **Microphone permissions**: Grant permissions in System Preferences/Settings
 2. **Accessibility permissions (macOS)**: Required for automatic text pasting
-   - Go to System Settings → Privacy & Security → Accessibility
-   - Add OpenWhispr and enable the checkbox
-   - Use "Fix Permission Issues" in Control Panel if needed
+    - Go to System Settings → Privacy & Security → Accessibility
+    - Add OpenWayl and enable the checkbox
+    - Use "Fix Permission Issues" in Control Panel if needed
 3. **API key errors** (cloud processing only): Ensure your OpenAI API key is valid and has credits
    - Set key through Control Panel or .env file
    - Check logs for "OpenAI API Key present: Yes/No"
@@ -465,11 +627,12 @@ OpenWhispr is designed with privacy and security in mind:
 
 ### Getting Help
 
-- Check the [Issues](https://github.com/your-repo/open-whispr/issues) page
+- Check the [Issues](https://github.com/christian-taillon/open-wayl/issues) page
 - Review the console logs for debugging information
 - For local processing: Ensure Python and pip are working
 - For cloud processing: Verify your OpenAI API key and billing status
 - Check the Control Panel for system status and diagnostics
+- For Wayland issues: Review [WAYLAND_SETUP.md](WAYLAND_SETUP.md)
 
 ### Performance Tips
 
@@ -480,8 +643,8 @@ OpenWhispr is designed with privacy and security in mind:
 
 ## FAQ
 
-**Q: Is OpenWhispr really free?**
-A: Yes! OpenWhispr is open source and free to use. You only pay for OpenAI API usage if you choose cloud processing.
+**Q: Is OpenWayl really free?**
+A: Yes! OpenWayl is open source and free to use. You only pay for OpenAI API usage if you choose cloud processing.
 
 **Q: Which processing method should I use?**
 A: Use local processing for privacy and offline use. Use cloud processing for speed and convenience.
@@ -491,21 +654,32 @@ A: Yes! The MIT license allows commercial use.
 
 **Q: How do I change the hotkey?**
 A: Open the Control Panel (right-click tray icon) and go to Settings. You can set any key as your hotkey.
+   - **On Wayland:** You also need to configure a desktop shortcut in GNOME/KDE settings
+   - **On macOS/Linux (X11):** The app registers global hotkeys directly
 
 **Q: Is my data secure?**
 A: With local processing, your audio never leaves your device. With cloud processing, audio is sent to OpenAI's servers (see their privacy policy).
 
 **Q: What languages are supported?**
-A: OpenWhispr supports 58 languages including English, Spanish, French, German, Chinese, Japanese, and more. Set your preferred language in the .env file or use auto-detect.
+A: OpenWayl supports 58 languages including English, Spanish, French, German, Chinese, Japanese, and more. Set your preferred language in the .env file or use auto-detect.
+
+**Q: Why doesn't the global hotkey work on Wayland?**
+A: Wayland isolates applications from global keyboard events for security. You must set up a custom desktop shortcut in your DE (GNOME, KDE, etc.) - see the [Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md) for details.
+
+**Q: Can I use OpenWayl on macOS or Windows?**
+A: Yes! OpenWayl is based on OpenWhispr and supports macOS and Windows, but it's optimized for Linux Wayland environments. On those platforms, global hotkeys and pasting work natively without additional setup.
 
 ## Project Status
 
-OpenWhispr is actively maintained and ready for production use. Current version: 1.0.4
+OpenWayl is actively maintained and ready for production use. Current version: 1.0.14
 
 - ✅ Core functionality complete
-- ✅ Cross-platform support
+- ✅ Wayland-optimized with ydotool integration
+- ✅ Cross-platform support (Linux-first)
 - ✅ Local and cloud processing
 - ✅ Automatic Python/Whisper installation
 - ✅ Agent naming system
 - ✅ Draggable interface
+- ✅ Multi-provider AI support (OpenAI, Anthropic, Gemini)
+- ✅ macOS Globe/Fn key support
 - 🚧 Continuous improvements and bug fixes
