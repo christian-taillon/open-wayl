@@ -211,7 +211,8 @@ class ClipboardManager {
         // Special handling for ydotool socket
         if (tool.cmd === "ydotool") {
           const userSocket = path.join(os.homedir(), ".ydotool_socket");
-          if (fs.existsSync(userSocket)) {
+          // Prioritize explicitly set env var, then check for user socket file
+          if (!process.env.YDOTOOL_SOCKET && fs.existsSync(userSocket)) {
             options.env = { ...process.env, YDOTOOL_SOCKET: userSocket };
             this.safeLog(`Using custom ydotool socket: ${userSocket}`);
           }
