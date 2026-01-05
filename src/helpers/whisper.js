@@ -17,6 +17,12 @@ class WhisperManager {
     this.currentDownloadProcess = null;
     this.pythonInstaller = new PythonInstaller();
     this.cachedFFmpegPath = null;
+    
+    // Persistent server state
+    this.serverProcess = null;
+    this.currentResolver = null;
+    this.serverStartPromise = null;
+    this.restartCount = 0;
   }
 
   sanitizeErrorMessage(message = "") {
@@ -80,10 +86,201 @@ class WhisperManager {
       await this.findPythonExecutable();
       await this.checkWhisperInstallation();
       this.isInitialized = true;
+      
+      // Pre-start the server to reduce latency for first transcription
+      // Don't await it to avoid blocking app startup
+      this.startServer().catch(err => {
+        debugLogger.log('Background Whisper server start failed (non-critical):', err.message);
+      });
+      
     } catch (error) {
       // Whisper not available at startup is not critical
       this.isInitialized = true;
     }
+  }
+
+  async startServer() {
+    if (this.serverProcess) return;
+    if (this.serverStartPromise) return this.serverStartPromise;
+
+    this.serverStartPromise = (async () => {
+      try {
+        const pythonCmd = await this.findPythonExecutable();
+        const whisperScriptPath = this.getWhisperScriptPath();
+        const ffmpegPath = await this.getFFmpegPath();
+
+        if (!ffmpegPath) {
+          throw new Error('FFmpeg not found. Cannot start Whisper server.');
+        }
+
+        const args = [whisperScriptPath, "--mode", "server"];
+        
+        // Setup environment
+        let effectiveFfmpegPath = ffmpegPath;
+        if (effectiveFfmpegPath.includes("app.asar") && !effectiveFfmpegPath.includes("app.asar.unpacked")) {
+          const unpackedPath = effectiveFfmpegPath.replace("app.asar", "app.asar.unpacked");
+          if (fs.existsSync(unpackedPath)) {
+            effectiveFfmpegPath = unpackedPath;
+          }
+        }
+
+        const absoluteFFmpegPath = path.resolve(effectiveFfmpegPath);
+        const enhancedEnv = {
+          ...process.env,
+          FFMPEG_PATH: absoluteFFmpegPath,
+          FFMPEG_EXECUTABLE: absoluteFFmpegPath,
+          FFMPEG_BINARY: absoluteFFmpegPath,
+          PYTHONIOENCODING: 'utf-8'
+        };
+
+        // Add ffmpeg to PATH
+        const ffmpegDir = path.dirname(absoluteFFmpegPath);
+        const currentPath = enhancedEnv.PATH || "";
+        const pathSeparator = process.platform === "win32" ? ";" : ":";
+        if (!currentPath.includes(ffmpegDir)) {
+          enhancedEnv.PATH = `${ffmpegDir}${pathSeparator}${currentPath}`;
+        }
+
+        debugLogger.log('Starting persistent Whisper server...');
+        
+        this.serverProcess = spawn(pythonCmd, args, {
+          stdio: ["pipe", "pipe", "pipe"],
+          windowsHide: true,
+          env: enhancedEnv,
+        });
+
+        // Setup handlers
+        this.serverProcess.stdout.on("data", (data) => this.handleServerOutput(data));
+        this.serverProcess.stderr.on("data", (data) => {
+          debugLogger.logProcessOutput('WhisperServer', 'stderr', data);
+        });
+
+        this.serverProcess.on("close", (code) => {
+          debugLogger.log('Whisper server closed with code:', code);
+          this.serverProcess = null;
+          this.serverStartPromise = null;
+          
+          // Reject any pending request
+          if (this.currentResolver) {
+            this.currentResolver.reject(new Error(`Whisper server closed unexpectedly (code ${code})`));
+            this.currentResolver = null;
+          }
+        });
+
+        this.serverProcess.on("error", (error) => {
+          debugLogger.error('Whisper server error:', error);
+          this.serverProcess = null;
+          this.serverStartPromise = null;
+        });
+
+        // Wait for "ready" signal
+        return new Promise((resolve, reject) => {
+          const readyTimeout = setTimeout(() => {
+            reject(new Error("Whisper server failed to start (timeout)"));
+          }, 10000);
+
+          // We'll hijack the resolver for the initial ready check
+          this.currentResolver = {
+            resolve: () => {
+              clearTimeout(readyTimeout);
+              this.currentResolver = null;
+              debugLogger.log('Whisper server ready');
+              resolve();
+            },
+            reject: (err) => {
+              clearTimeout(readyTimeout);
+              this.currentResolver = null;
+              reject(err);
+            }
+          };
+        });
+
+      } catch (error) {
+        this.serverStartPromise = null;
+        this.serverProcess = null;
+        throw error;
+      }
+    })();
+
+    return this.serverStartPromise;
+  }
+
+  handleServerOutput(data) {
+    const output = data.toString();
+    const lines = output.split('\n');
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      
+      try {
+        const json = JSON.parse(trimmed);
+        
+        // Handle ready signal
+        if (json.status === 'ready' && this.currentResolver) {
+          this.currentResolver.resolve();
+          continue;
+        }
+
+        // Handle transcription result or error
+        if (this.currentResolver) {
+          if (json.error) {
+            this.currentResolver.reject(new Error(json.error));
+          } else {
+            this.currentResolver.resolve(json);
+          }
+          this.currentResolver = null;
+        }
+      } catch (e) {
+        // Ignore non-JSON output (maybe debug prints)
+        debugLogger.logProcessOutput('WhisperServer', 'stdout (raw)', trimmed);
+      }
+    }
+  }
+
+  async stopServer() {
+    if (this.serverProcess) {
+      try {
+        this.serverProcess.stdin.write(JSON.stringify({ command: "exit" }) + "\n");
+        // Give it a moment to exit gracefully
+        await new Promise(r => setTimeout(r, 500));
+        if (this.serverProcess) {
+          this.serverProcess.kill();
+        }
+      } catch (e) {
+        // ignore
+      }
+      this.serverProcess = null;
+      this.serverStartPromise = null;
+    }
+  }
+
+  async transcribeWithServer(audioPath, model, language) {
+    if (!this.serverProcess) {
+      await this.startServer();
+    }
+
+    if (this.currentResolver) {
+      throw new Error("Whisper server is busy");
+    }
+
+    return new Promise((resolve, reject) => {
+      this.currentResolver = { resolve, reject };
+      
+      const request = {
+        command: "transcribe",
+        audio_path: audioPath,
+        model: model || "base",
+        language: language
+      };
+
+      try {
+        this.serverProcess.stdin.write(JSON.stringify(request) + "\n");
+      } catch (e) {
+        this.currentResolver = null;
+        reject(e);
+      }
+    });
   }
 
   async transcribeLocalWhisper(audioBlob, options = {}) {
@@ -107,15 +304,34 @@ class WhisperManager {
     const language = options.language || null;
 
     try {
-      const result = await this.runWhisperProcess(
-        tempAudioPath,
-        model,
-        language
-      );
-      return this.parseWhisperResult(result);
+      // Use persistent server for better performance
+      const result = await this.transcribeWithServer(tempAudioPath, model, language);
+      
+      if (!result.text || result.text.trim().length === 0) {
+        return { success: false, message: "No audio detected" };
+      }
+      return { success: true, text: result.text.trim() };
+      
     } catch (error) {
+      // If server fails, try to restart it once
+      if (this.restartCount < 1) {
+        debugLogger.log('Whisper server failed, retrying once...');
+        this.restartCount++;
+        await this.stopServer();
+        try {
+          const result = await this.transcribeWithServer(tempAudioPath, model, language);
+          this.restartCount = 0; // Reset on success
+          if (!result.text || result.text.trim().length === 0) {
+            return { success: false, message: "No audio detected" };
+          }
+          return { success: true, text: result.text.trim() };
+        } catch (retryError) {
+          throw retryError;
+        }
+      }
       throw error;
     } finally {
+      this.restartCount = 0; // Reset
       await this.cleanupTempFile(tempAudioPath);
     }
   }

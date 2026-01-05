@@ -461,10 +461,52 @@ def check_ffmpeg():
             "success": False
         }
 
+def run_server():
+    """Run in persistent server mode, reading commands from stdin"""
+    # Signal readiness
+    print(json.dumps({"status": "ready"}), flush=True)
+    
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+            
+        try:
+            data = json.loads(line)
+            command = data.get("command")
+            
+            if command == "transcribe":
+                audio_path = data.get("audio_path")
+                model_name = data.get("model", "base")
+                language = data.get("language")
+                
+                # Check if file exists
+                if not audio_path or not os.path.exists(audio_path):
+                    print(json.dumps({"error": f"File not found: {audio_path}", "success": False}), flush=True)
+                    continue
+
+                # Transcribe
+                result = transcribe_audio(audio_path, model_name, language)
+                print(json.dumps(result), flush=True)
+                
+                # Force garbage collection if memory is tight? 
+                # For now let's trust the _model_cache logic
+                
+            elif command == "ping":
+                print(json.dumps({"status": "pong", "success": True}), flush=True)
+                
+            elif command == "exit":
+                break
+                
+        except json.JSONDecodeError:
+            print(json.dumps({"error": "Invalid JSON", "success": False}), flush=True)
+        except Exception as e:
+            print(json.dumps({"error": str(e), "success": False}), flush=True)
+
 def main():
     parser = argparse.ArgumentParser(description="Whisper Bridge for OpenWhispr")
     parser.add_argument("--mode", default="transcribe", 
-                       choices=["transcribe", "download", "check", "list", "delete", "check-ffmpeg"],
+                       choices=["transcribe", "download", "check", "list", "delete", "check-ffmpeg", "server"],
                        help="Operation mode (default: transcribe)")
     parser.add_argument("audio_file", nargs="?", help="Path to audio file to transcribe")
     parser.add_argument("--model", default="base", 
@@ -478,7 +520,10 @@ def main():
     args = parser.parse_args()
     
     # Handle different modes
-    if args.mode == "download":
+    if args.mode == "server":
+        run_server()
+        return
+    elif args.mode == "download":
         result = download_model(args.model)
         print(json.dumps(result))
         return
