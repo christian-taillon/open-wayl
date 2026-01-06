@@ -15,6 +15,11 @@ class HotkeyManager {
       globalShortcut.unregister(this.currentHotkey);
     }
 
+    if (!hotkey || hotkey.trim() === "") {
+      this.currentHotkey = "";
+      return { success: true, hotkey: "" };
+    }
+
     try {
       if (hotkey === "GLOBE") {
         if (process.platform !== "darwin") {

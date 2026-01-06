@@ -3,7 +3,7 @@
 # Bind this script to a custom keyboard shortcut in GNOME Settings
 
 # Ensure we are in the project directory
-PROJECT_DIR="/home/christian/github/open-whispr"
+PROJECT_DIR="/home/christian/github/open-wayl"
 
 if [ -d "$PROJECT_DIR" ]; then
   cd "$PROJECT_DIR"

@@ -21,7 +21,7 @@ def get_ffmpeg_path():
     # Check environment variables first
     env_paths = [
         ("FFMPEG_PATH", os.environ.get("FFMPEG_PATH")),
-        ("FFMPEG_EXECUTABLE", os.environ.get("FFMPEG_EXECUTABLE")), 
+        ("FFMPEG_EXECUTABLE", os.environ.get("FFMPEG_EXECUTABLE")),
         ("FFMPEG_BINARY", os.environ.get("FFMPEG_BINARY"))
     ]
     
@@ -121,7 +121,7 @@ def load_model(model_name="base"):
     
     # Return cached model if available
     if model_name in _model_cache:
-        return _model_cache[model_name]
+        return _model_cache[model_name], None
     
     try:
         model = whisper.load_model(model_name)
@@ -132,9 +132,13 @@ def load_model(model_name="base"):
             gc.collect()
         
         _model_cache[model_name] = model
-        return model
+        return model, None
     except Exception as e:
-        return None
+        error_msg = str(e)
+        sys.stderr.write(f"Error loading model '{model_name}': {error_msg}\n")
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        return None, error_msg
 
 def get_expected_model_size(model_name):
     """Get expected file size for a model by checking the remote URL"""
@@ -391,9 +395,9 @@ def transcribe_audio(audio_path, model_name="base", language=None):
     
     try:
         # Load model (uses cache for performance)
-        model = load_model(model_name)
+        model, error = load_model(model_name)
         if model is None:
-            return {"error": "Failed to load Whisper model", "success": False}
+            return {"error": f"Failed to load Whisper model: {error}", "success": False}
         
         options = {
             "fp16": False,

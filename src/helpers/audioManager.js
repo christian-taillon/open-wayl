@@ -303,17 +303,18 @@ class AudioManager {
     return new Blob([arrayBuffer], { type: "audio/wav" });
   }
 
-  async processWithReasoningModel(text, model, agentName) {
+  async processWithReasoningModel(text, model, agentName, provider) {
     debugLogger.logReasoning("CALLING_REASONING_SERVICE", {
       model,
       agentName,
+      provider,
       textLength: text.length
     });
     
     const startTime = Date.now();
     
     try {
-      const result = await ReasoningService.processText(text, model, agentName);
+      const result = await ReasoningService.processText(text, model, agentName, { provider });
       
       const processingTime = Date.now() - startTime;
       
@@ -443,7 +444,7 @@ class AudioManager {
           provider: reasoningProvider
         });
 
-        const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName);
+        const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName, reasoningProvider);
         
         debugLogger.logReasoning("REASONING_SUCCESS", {
           resultLength: result.length,

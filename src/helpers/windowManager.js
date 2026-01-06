@@ -78,6 +78,10 @@ class WindowManager {
         this.enforceMainWindowOnTop();
       }
     );
+
+    this.mainWindow.webContents.on("crashed", (event, killed) => {
+      console.error("Renderer process crashed!", killed ? "Killed" : "Crashed");
+    });
   }
 
   setMainWindowInteractivity(shouldCapture) {

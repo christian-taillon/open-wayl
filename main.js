@@ -221,9 +221,9 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   // Don't quit on macOS when all windows are closed
   // The app should stay in the dock/menu bar
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  // if (process.platform !== "darwin") {
+  //   app.quit();
+  // }
   // On macOS, keep the app running even without windows
 });
 

@@ -86,6 +86,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
 
   const [apiKey, setApiKey] = useState(openaiApiKey);
   const [hotkey, setHotkey] = useState(dictationKey || "`");
+  const [hotkeySkipped, setHotkeySkipped] = useState(false);
   const [transcriptionBaseUrl, setTranscriptionBaseUrl] = useState(cloudTranscriptionBaseUrl);
   const [reasoningBaseUrl, setReasoningBaseUrl] = useState(cloudReasoningBaseUrl);
   const [agentName, setAgentName] = useState("Agent");
@@ -327,6 +328,10 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
   }, [currentStep]);
 
   const ensureHotkeyRegistered = useCallback(async () => {
+    if (!hotkey || hotkey.trim() === "") {
+      return true;
+    }
+
     if (!window.electronAPI?.updateHotkey) {
       return true;
     }
@@ -917,6 +922,20 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                   <InteractiveKeyboard selectedKey={hotkey} setSelectedKey={setHotkey} />
                 </React.Suspense>
               </div>
+
+              <div className="text-center">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setHotkey("");
+                    setHotkeySkipped(true);
+                  }}
+                  className="text-stone-500 hover:text-stone-700"
+                >
+                  I use an external script (Skip this step)
+                </Button>
+              </div>
             </div>
           </div>
         );
@@ -1200,7 +1219,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           permissionsHook.accessibilityPermissionGranted
         );
       case 4:
-        return hotkey.trim() !== "";
+        return hotkey.trim() !== "" || hotkeySkipped;
       case 5:
         return true; // Practice step is always ready to proceed
       case 6:

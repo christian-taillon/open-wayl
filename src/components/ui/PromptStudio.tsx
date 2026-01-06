@@ -155,6 +155,7 @@ export default function PromptStudio({ className = "" }: PromptStudioProps) {
         } else {
           // Call the AI - ReasoningService will automatically use the custom prompts
           const result = await ReasoningService.processText(testText, reasoningModel, agentName, {
+            provider: reasoningProvider,
             customPrompts: {
               agent: editedAgentPrompt,
               regular: editedRegularPrompt

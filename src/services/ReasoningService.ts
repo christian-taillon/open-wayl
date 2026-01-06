@@ -190,7 +190,7 @@ class ReasoningService extends BaseReasoningService {
     agentName: string | null = null,
     config: ReasoningConfig = {}
   ): Promise<string> {
-    const provider = getModelProvider(model);
+    const provider = config.provider || getModelProvider(model);
 
     debugLogger.logReasoning("PROVIDER_SELECTION", {
       model,
@@ -212,6 +212,7 @@ class ReasoningService extends BaseReasoningService {
       
       switch (provider) {
         case "openai":
+        case "custom":
           result = await this.processWithOpenAI(text, model, agentName, config);
           break;
         case "anthropic":
