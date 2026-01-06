@@ -224,7 +224,22 @@ sudo pacman -S ydotool
 
 > ℹ️ **Note**: See [WAYLAND_SETUP.md](WAYLAND_SETUP.md) for configuring the ydotool service, which is required for auto-paste to work.
 
-> 🔒 **Flatpak Security**: The Flatpak package includes sandboxing with explicit permissions.
+# Fedora/RHEL
+sudo dnf install wtype
+
+# Arch
+sudo pacman -S wtype
+
+# Alternative: ydotool (requires uinput permissions)
+sudo apt install ydotool  # or equivalent for your distro
+
+# On KDE Wayland you will additionally need `kdotool` to detect if a terminal is focused for automatically pasting with Ctrl+Shift+V instead of Ctrl+V. Automatic terminal detection on non-KDE Wayland is not yet supported.
+sudo apt install kdotool # or equivalent for your distro
+```
+
+> ℹ️ **Note**: OpenWhispr automatically detects your display server (X11 vs Wayland) and uses the appropriate paste tool. If no paste tool is installed, text will still be copied to the clipboard - you'll just need to paste manually with Ctrl+V.
+
+> 🔒 **Flatpak Security**: The Flatpak package includes sandboxing with explicit permissions for microphone, clipboard, and file access. See [electron-builder.json](electron-builder.json) for the complete permission list.
 
 ### Building for Distribution
 

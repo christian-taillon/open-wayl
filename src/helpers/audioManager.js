@@ -1,23 +1,9 @@
 import ReasoningService from "../services/ReasoningService";
 import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from "../config/constants";
+import logger from "../utils/logger";
 
-const isDebugMode = typeof process !== 'undefined' && (process.env.OPENWHISPR_DEBUG === 'true' || process.env.NODE_ENV === 'development');
 const SHORT_CLIP_DURATION_SECONDS = 2.5;
 const REASONING_CACHE_TTL = 30000; // 30 seconds
-
-const debugLogger = {
-  logReasoning: async (stage, details) => {
-    if (!isDebugMode) return;
-
-    if (window.electronAPI?.logReasoning) {
-      try {
-        await window.electronAPI.logReasoning(stage, details);
-      } catch (error) {
-        // Silent fail
-      }
-    }
-  }
-};
 
 
 class AudioManager {
@@ -304,7 +290,7 @@ class AudioManager {
   }
 
   async processWithReasoningModel(text, model, agentName, provider) {
-    debugLogger.logReasoning("CALLING_REASONING_SERVICE", {
+    logger.logReasoning("CALLING_REASONING_SERVICE", {
       model,
       agentName,
       provider,
@@ -318,7 +304,7 @@ class AudioManager {
       
       const processingTime = Date.now() - startTime;
       
-      debugLogger.logReasoning("REASONING_SERVICE_COMPLETE", {
+      logger.logReasoning("REASONING_SERVICE_COMPLETE", {
         model,
         processingTimeMs: processingTime,
         resultLength: result.length,
@@ -329,7 +315,7 @@ class AudioManager {
     } catch (error) {
       const processingTime = Date.now() - startTime;
       
-      debugLogger.logReasoning("REASONING_SERVICE_ERROR", {
+      logger.logReasoning("REASONING_SERVICE_ERROR", {
         model,
         processingTimeMs: processingTime,
         error: error.message,
@@ -356,7 +342,7 @@ class AudioManager {
       return this.reasoningAvailabilityCache.value;
     }
 
-    debugLogger.logReasoning("REASONING_STORAGE_CHECK", {
+    logger.logReasoning("REASONING_STORAGE_CHECK", {
       storedValue,
       typeOfStoredValue: typeof storedValue,
       isTrue: storedValue === "true",
@@ -378,7 +364,7 @@ class AudioManager {
     try {
       const isAvailable = await ReasoningService.isAvailable();
 
-      debugLogger.logReasoning("REASONING_AVAILABILITY", {
+      logger.logReasoning("REASONING_AVAILABILITY", {
         isAvailable,
         reasoningEnabled: useReasoning,
         finalDecision: useReasoning && isAvailable,
@@ -392,7 +378,7 @@ class AudioManager {
 
       return isAvailable;
     } catch (error) {
-      debugLogger.logReasoning("REASONING_AVAILABILITY_ERROR", {
+      logger.logReasoning("REASONING_AVAILABILITY_ERROR", {
         error: error.message,
         stack: error.stack,
       });
@@ -409,7 +395,7 @@ class AudioManager {
   async processTranscription(text, source) {
     const normalizedText = typeof text === "string" ? text.trim() : "";
 
-    debugLogger.logReasoning("TRANSCRIPTION_RECEIVED", {
+    logger.logReasoning("TRANSCRIPTION_RECEIVED", {
       source,
       textLength: normalizedText.length,
       textPreview: normalizedText.substring(0, 100) + (normalizedText.length > 100 ? "..." : ""),
@@ -427,7 +413,7 @@ class AudioManager {
       : null;
     const useReasoning = await this.isReasoningAvailable();
 
-    debugLogger.logReasoning("REASONING_CHECK", {
+    logger.logReasoning("REASONING_CHECK", {
       useReasoning,
       reasoningModel,
       reasoningProvider,
@@ -438,7 +424,7 @@ class AudioManager {
       try {
         const preparedText = normalizedText;
 
-        debugLogger.logReasoning("SENDING_TO_REASONING", {
+        logger.logReasoning("SENDING_TO_REASONING", {
           preparedTextLength: preparedText.length,
           model: reasoningModel,
           provider: reasoningProvider
@@ -446,7 +432,7 @@ class AudioManager {
 
         const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName, reasoningProvider);
         
-        debugLogger.logReasoning("REASONING_SUCCESS", {
+        logger.logReasoning("REASONING_SUCCESS", {
           resultLength: result.length,
           resultPreview: result.substring(0, 100) + (result.length > 100 ? "..." : ""),
           processingTime: new Date().toISOString()
@@ -454,7 +440,7 @@ class AudioManager {
         
         return result;
       } catch (error) {
-        debugLogger.logReasoning("REASONING_FAILED", {
+        logger.logReasoning("REASONING_FAILED", {
           error: error.message,
           stack: error.stack,
           fallbackToCleanup: true
@@ -463,7 +449,7 @@ class AudioManager {
       }
     }
 
-    debugLogger.logReasoning("USING_STANDARD_CLEANUP", {
+    logger.logReasoning("USING_STANDARD_CLEANUP", {
       reason: useReasoning ? "Reasoning failed" : "Reasoning not enabled"
     });
 

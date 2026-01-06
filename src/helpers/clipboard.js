@@ -170,6 +170,73 @@ class ClipboardManager {
       }
     };
 
+    // Detect if the focused window is a terminal emulator
+    // Terminals use Ctrl+Shift+V for paste (since Ctrl+V/C are used for process control)
+    const isTerminal = () => {
+      // Common terminal emulator class names
+      const terminalClasses = [
+        "konsole",
+        "gnome-terminal",
+        "terminal",
+        "kitty",
+        "alacritty",
+        "terminator",
+        "xterm",
+        "urxvt",
+        "rxvt",
+        "tilix",
+        "terminology",
+        "wezterm",
+        "foot",
+        "st",
+        "yakuake",
+      ];
+
+      try {
+        // Try xdotool (works on X11 and XWayland)
+        if (commandExists("xdotool")) {
+          const result = spawnSync("xdotool", [
+            "getactivewindow",
+            "getwindowclassname",
+          ]);
+          if (result.status === 0) {
+            const className = result.stdout.toString().toLowerCase().trim();
+            const isTerminalWindow = terminalClasses.some((term) =>
+              className.includes(term)
+            );
+            if (isTerminalWindow) {
+              this.safeLog(`🖥️ Terminal detected via xdotool: ${className}`);
+            }
+            return isTerminalWindow;
+          }
+        }
+
+        // Try kdotool for KDE Wayland (if available)
+        if (commandExists("kdotool")) {
+          // First get the active window ID
+          const windowIdResult = spawnSync("kdotool", ["getactivewindow"]);
+          if (windowIdResult.status === 0) {
+            const windowId = windowIdResult.stdout.toString().trim();
+            // Then get the window class name
+            const classResult = spawnSync("kdotool", ["getwindowclassname", windowId]);
+            if (classResult.status === 0) {
+              const className = classResult.stdout.toString().toLowerCase().trim();
+              const isTerminalWindow = terminalClasses.some((term) =>
+                className.includes(term)
+              );
+              if (isTerminalWindow) {
+                this.safeLog(`🖥️ Terminal detected via kdotool: ${className}`);
+              }
+              return isTerminalWindow;
+            }
+          }
+        }
+      } catch (error) {
+        // Silent fallback - if detection fails, assume non-terminal
+      }
+      return false;
+    };
+
     // Detect if running on Wayland or X11
     const isWayland =
       (process.env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" ||
@@ -177,6 +244,9 @@ class ClipboardManager {
     
     // Check for GNOME, where wtype is typically not supported
     const isGnome = (process.env.XDG_CURRENT_DESKTOP || "").toUpperCase().includes("GNOME");
+
+    const inTerminal = isTerminal();
+    const pasteKeys = inTerminal ? "ctrl+shift+v" : "ctrl+v";
 
     // Define paste tools in preference order based on display server
     let candidates = [];
@@ -186,18 +256,27 @@ class ClipboardManager {
       // We skip it to fall back to xdotool (which works for XWayland apps)
       // or ydotool if configured.
       if (!isGnome) {
-        candidates.push({ cmd: "wtype", args: ["-M", "ctrl", "-p", "v", "-m", "ctrl"] });
+        candidates.push(
+          inTerminal
+            ? {
+                cmd: "wtype",
+                args: ["-M", "ctrl", "-M", "shift", "-k", "v", "-m", "shift", "-m", "ctrl"],
+              }
+            : { cmd: "wtype", args: ["-M", "ctrl", "-k", "v", "-m", "ctrl"] }
+        );
       }
       
       candidates.push(
         // ydotool requires uinput permissions but included as fallback
-        { cmd: "ydotool", args: ["key", "29:1", "47:1", "47:0", "29:0"] },
+        inTerminal
+          ? { cmd: "ydotool", args: ["key", "29:1", "42:1", "47:1", "47:0", "42:0", "29:0"] }
+          : { cmd: "ydotool", args: ["key", "29:1", "47:1", "47:0", "29:0"] },
         // X11 fallback for XWayland
-        { cmd: "xdotool", args: ["key", "ctrl+v"] }
+        { cmd: "xdotool", args: ["key", pasteKeys] }
       );
     } else {
       // X11 tools
-      candidates.push({ cmd: "xdotool", args: ["key", "ctrl+v"] });
+      candidates.push({ cmd: "xdotool", args: ["key", pasteKeys] });
     }
 
     // Filter to only available tools
@@ -240,9 +319,9 @@ class ClipboardManager {
           if (code === 0) {
             // On Linux, we do not restore the original clipboard.
             // This is because paste operations on Wayland/X11 are often "fire and forget"
-            // and we can't guarantee the target app has received the paste event yet.
-            // It is better to leave the dictated text in the clipboard so the user
-            // can manually paste it if the automatic paste fails.
+            // and we can't guarantee of target app has received the paste event yet.
+            // It is better to leave of dictated text in the clipboard so of user
+            // can manually paste it if automatic paste fails.
             resolve();
           } else {
             reject(new Error(`${tool.cmd} exited with code ${code}`));
