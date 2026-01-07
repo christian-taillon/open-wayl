@@ -10,6 +10,7 @@ class IPCHandlers {
     this.whisperManager = managers.whisperManager;
     this.windowManager = managers.windowManager;
     this.modelManager = managers.modelManager;
+    this.nemotronManager = managers.nemotronManager;
     this.setupHandlers();
   }
 
@@ -141,15 +142,68 @@ class IPCHandlers {
       return this.clipboardManager.writeClipboard(text);
     });
 
-    // Whisper handlers
+    // Whisper & Nemotron handlers
     ipcMain.handle(
       "transcribe-local-whisper",
       async (event, audioBlob, options = {}) => {
-        debugLogger.log('transcribe-local-whisper called', {
+        debugLogger.log('transcribe called', {
+          model: options.model,
           audioBlobType: typeof audioBlob,
-          audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0,
-          options
+          audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0
         });
+
+        // 1. Convert Blob/ArrayBuffer to temp file
+
+        if (options.model === "nvidia/nemotron-speech-streaming-en-0.6b") {
+            try {
+                // Reuse WhisperManager's temp file creation logic for consistency
+                const tempPath = await this.whisperManager.createTempAudioFile(audioBlob);
+
+                // Convert audio to 16kHz mono WAV using ffmpeg (Nemotron is picky)
+                // We'll use a new temp file for the converted audio
+                const path = require("path");
+                const { spawn } = require("child_process");
+                const fsPromises = require("fs").promises;
+
+                const convertedPath = tempPath.replace(".wav", "_16k.wav");
+                const ffmpegPath = await this.whisperManager.getFFmpegPath();
+
+                if (!ffmpegPath) {
+                    throw new Error("FFmpeg not found for audio conversion");
+                }
+
+                await new Promise((resolve, reject) => {
+                    const args = [
+                        "-y",
+                        "-i", tempPath,
+                        "-ar", "16000",
+                        "-ac", "1",
+                        "-c:a", "pcm_s16le",
+                        convertedPath
+                    ];
+
+                    const proc = spawn(ffmpegPath, args);
+
+                    proc.on("close", (code) => {
+                        if (code === 0) resolve();
+                        else reject(new Error(`FFmpeg conversion failed with code ${code}`));
+                    });
+
+                    proc.on("error", (err) => reject(err));
+                });
+
+                const text = await this.nemotronManager.transcribe(convertedPath);
+
+                // Cleanup
+                await this.whisperManager.cleanupTempFile(tempPath);
+                await this.whisperManager.cleanupTempFile(convertedPath);
+
+                return { success: true, text: text };
+            } catch (error) {
+                debugLogger.error("Nemotron transcription error", error);
+                return { success: false, error: error.message };
+            }
+        }
         
         try {
           const result = await this.whisperManager.transcribeLocalWhisper(
@@ -177,6 +231,48 @@ class IPCHandlers {
         }
       }
     );
+
+    // Nemotron Handlers
+    ipcMain.handle("nemotron-check-env", async () => {
+        const uv = await this.nemotronManager.getUvPath();
+        const python = this.nemotronManager.getPythonPath();
+        const venvExists = require("fs").existsSync(python);
+
+        const sysDeps = await this.nemotronManager.checkSystemDependencies();
+
+        return {
+            uvInstalled: !!uv,
+            venvCreated: venvExists,
+            systemDeps: sysDeps
+        };
+    });
+
+    ipcMain.handle("nemotron-check-gpu", async () => {
+        return this.nemotronManager.checkGPU();
+    });
+
+    ipcMain.handle("nemotron-install-env", async (event) => {
+        try {
+            await this.nemotronManager.installUv();
+            await this.nemotronManager.createEnvironment((progress) => {
+                event.sender.send("nemotron-install-progress", progress);
+            });
+            return { success: true };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
+
+    ipcMain.handle("nemotron-download-model", async (event) => {
+        try {
+            const path = await this.nemotronManager.downloadModel((progress) => {
+                event.sender.send("nemotron-download-progress", progress);
+            });
+            return { success: true, path };
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    });
 
     ipcMain.handle("check-whisper-installation", async (event) => {
       return this.whisperManager.checkWhisperInstallation();

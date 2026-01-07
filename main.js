@@ -32,6 +32,7 @@ const WindowManager = require("./src/helpers/windowManager");
 const DatabaseManager = require("./src/helpers/database");
 const ClipboardManager = require("./src/helpers/clipboard");
 const WhisperManager = require("./src/helpers/whisper");
+const NemotronManager = require("./src/helpers/nemotronManager");
 const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
 const UpdateManager = require("./src/updater");
@@ -72,6 +73,7 @@ const hotkeyManager = windowManager.hotkeyManager;
 const databaseManager = new DatabaseManager();
 const clipboardManager = new ClipboardManager();
 const whisperManager = new WhisperManager();
+const nemotronManager = new NemotronManager();
 const trayManager = new TrayManager();
 const updateManager = new UpdateManager();
 const globeKeyManager = new GlobeKeyManager();
@@ -110,6 +112,7 @@ const ipcHandlers = new IPCHandlers({
   databaseManager,
   clipboardManager,
   whisperManager,
+  nemotronManager,
   windowManager,
 });
 
