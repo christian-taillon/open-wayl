@@ -164,6 +164,22 @@ export default function UnifiedModelPicker({
     totalBytes: 0,
   });
   const [loadingModels, setLoadingModels] = useState(false);
+  const [nemotronStatus, setNemotronStatus] = useState<{
+    uvInstalled: boolean;
+    venvCreated: boolean;
+    systemDeps: { available: boolean; error?: string };
+    gpu: { available: boolean; device?: string };
+    checked: boolean;
+  }>({
+    uvInstalled: false,
+    venvCreated: false,
+    systemDeps: { available: true },
+    gpu: { available: false },
+    checked: false
+  });
+  const [installingNemotron, setInstallingNemotron] = useState(false);
+  const [installProgress, setInstallProgress] = useState<{message: string, percentage: number} | null>(null);
+
   const [llamaCppStatus, setLlamaCppStatus] = useState<{
     isInstalled: boolean;
     version?: string;
@@ -223,6 +239,24 @@ export default function UnifiedModelPicker({
             isDownloaded: m.downloaded,
             recommended: m.model === 'base'
           }));
+
+          // Add Nemotron (Pro) Model
+          // We need to check if it's "downloaded" by checking venv and model presence.
+          // For now, let's assume if venv exists and gpu is ready, it's potentially available,
+          // but strictly speaking we should check for model files too.
+          // Since we don't have a direct "isDownloaded" for Nemotron in the same list call,
+          // we might just check env status in a separate effect and merge.
+
+          whisperModels.push({
+              id: "nvidia/nemotron-speech-streaming-en-0.6b",
+              name: "NVIDIA Nemotron (Pro)",
+              size: "~2GB",
+              description: "High performance, low latency. Requires NVIDIA GPU.",
+              type: 'whisper', // It acts as a whisper replacement
+              isDownloaded: false, // Updated by effect
+              downloaded: false
+          });
+
           setModels(whisperModels);
         }
       } else {
@@ -256,6 +290,42 @@ export default function UnifiedModelPicker({
     loadModels();
   }, [loadModels]);
 
+  // Check Nemotron status
+  useEffect(() => {
+      if (modelType === 'whisper') {
+          const checkNemotron = async () => {
+              try {
+                  const env = await window.electronAPI.nemotronCheckEnv();
+                  const gpu = await window.electronAPI.nemotronCheckGPU();
+
+                  // Check if we consider it "downloaded/installed"
+                  // A rough check: venv exists and we assume model is downloaded if user went through flow.
+                  // Ideally we check model path existence.
+                  // For now, let's update the model list "downloaded" status based on venvCreated.
+                  // (Improving this later would be better).
+
+                  setNemotronStatus({
+                      uvInstalled: env.uvInstalled,
+                      venvCreated: env.venvCreated,
+                      systemDeps: env.systemDeps,
+                      gpu: gpu,
+                      checked: true
+                  });
+
+                  setModels(prev => prev.map(m => {
+                      if (m.id === "nvidia/nemotron-speech-streaming-en-0.6b") {
+                          return { ...m, isDownloaded: env.venvCreated && env.systemDeps.available, downloaded: env.venvCreated && env.systemDeps.available };
+                      }
+                      return m;
+                  }));
+              } catch (e) {
+                  console.error("Nemotron check failed", e);
+              }
+          };
+          checkNemotron();
+      }
+  }, [modelType, loadingModels]); // Re-run when models reload
+
   useEffect(() => {
     const handleModelsCleared = () => {
       loadModels();
@@ -266,6 +336,24 @@ export default function UnifiedModelPicker({
       window.removeEventListener("openwhispr-models-cleared", handleModelsCleared);
     };
   }, [loadModels]);
+
+  // Nemotron Install Progress
+  useEffect(() => {
+      const cleanup = window.electronAPI.onNemotronInstallProgress((event, data) => {
+          setInstallProgress(data);
+      });
+      return cleanup;
+  }, []);
+
+  // Nemotron Download Progress
+  useEffect(() => {
+      const cleanup = window.electronAPI.onNemotronDownloadProgress((event, data) => {
+         if (data.status === 'downloading') {
+             setInstallProgress({ message: data.message, percentage: 50 }); // Indeterminate-ish
+         }
+      });
+      return cleanup;
+  }, []);
 
   const handleDownloadProgress = useCallback((_event: any, data: any) => {
     if (modelType === 'whisper') {
@@ -310,7 +398,58 @@ export default function UnifiedModelPicker({
     };
   }, [handleDownloadProgress, modelType]);
 
+  const installNemotron = useCallback(async () => {
+      setInstallingNemotron(true);
+      setInstallProgress({ message: "Starting installation...", percentage: 0 });
+
+      try {
+          // 1. Install Environment
+          const envResult = await window.electronAPI.nemotronInstallEnv();
+          if (!envResult.success) throw new Error(envResult.error);
+
+          // 2. Download Model
+          const dlResult = await window.electronAPI.nemotronDownloadModel();
+          if (!dlResult.success) throw new Error(dlResult.error);
+
+          toast({
+              title: "Installation Complete",
+              description: "NVIDIA Nemotron is ready to use.",
+          });
+
+          // Refresh
+          loadModels();
+      } catch (e: any) {
+          showAlertDialog({
+              title: "Installation Failed",
+              description: e.message
+          });
+      } finally {
+          setInstallingNemotron(false);
+          setInstallProgress(null);
+      }
+  }, [loadModels, toast, showAlertDialog]);
+
   const downloadModel = useCallback(async (modelId: string) => {
+    // Special handling for Nemotron
+    if (modelId === "nvidia/nemotron-speech-streaming-en-0.6b") {
+        if (!nemotronStatus.gpu.available) {
+             showAlertDialog({
+                 title: "Incompatible Hardware",
+                 description: "This model requires an NVIDIA GPU. " + (nemotronStatus.gpu.error || "")
+             });
+             return;
+        }
+        if (!nemotronStatus.systemDeps.available) {
+            showAlertDialog({
+                 title: "Missing Dependency",
+                 description: "System dependency missing: " + nemotronStatus.systemDeps.error + ". Please install it (e.g. `sudo apt install libsndfile1`) and restart."
+             });
+             return;
+        }
+        installNemotron();
+        return;
+    }
+
     try {
       setDownloadingModel(modelId);
       setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
@@ -340,7 +479,7 @@ export default function UnifiedModelPicker({
       setDownloadingModel(null);
       setDownloadProgress({ percentage: 0, downloadedBytes: 0, totalBytes: 0 });
     }
-  }, [modelType, onModelSelect, loadModels, showAlertDialog]);
+  }, [modelType, onModelSelect, loadModels, showAlertDialog, nemotronStatus, installNemotron]);
 
   const deleteModel = useCallback(async (modelId: string) => {
     showConfirmDialog({
@@ -423,6 +562,27 @@ export default function UnifiedModelPicker({
   }
 
   const progressDisplay = useMemo(() => {
+    if (installingNemotron && installProgress) {
+         return (
+          <div className={`${styles.progress} p-3`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-sm font-medium ${styles.progressText}`}>
+                Installing Nemotron...
+              </span>
+              <span className={`text-xs ${styles.progressText}`}>
+                {installProgress.message}
+              </span>
+            </div>
+            <div className={`w-full ${styles.progressBar} rounded-full h-2`}>
+              <div
+                className={`${styles.progressFill} h-2 rounded-full transition-all duration-300 ease-out`}
+                style={{ width: `${Math.min(installProgress.percentage, 100)}%` }}
+              />
+            </div>
+          </div>
+        );
+    }
+
     if (!downloadingModel) return null;
 
     const { percentage, speed, eta } = downloadProgress;
@@ -448,7 +608,7 @@ export default function UnifiedModelPicker({
         </div>
       </div>
     );
-  }, [downloadingModel, downloadProgress, models, styles]);
+  }, [downloadingModel, downloadProgress, models, styles, installingNemotron, installProgress]);
 
   return (
     <div className={`${styles.container} ${className}`}>

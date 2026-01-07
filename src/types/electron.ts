@@ -188,6 +188,14 @@ declare global {
       ) => (() => void) | void;
       checkModelStatus: (modelName: string) => Promise<WhisperModelResult>;
       listWhisperModels: () => Promise<WhisperModelsListResult>;
+
+      // Nemotron
+      nemotronCheckEnv: () => Promise<{ uvInstalled: boolean; venvCreated: boolean; systemDeps: { available: boolean; error?: string } }>;
+      nemotronCheckGPU: () => Promise<{ available: boolean; device?: string; error?: string }>;
+      nemotronInstallEnv: () => Promise<{ success: boolean; error?: string }>;
+      nemotronDownloadModel: () => Promise<{ success: boolean; path?: string; error?: string }>;
+      onNemotronInstallProgress: (callback: (event: any, data: { message: string; percentage: number }) => void) => (() => void) | void;
+      onNemotronDownloadProgress: (callback: (event: any, data: { status: string; message: string }) => void) => (() => void) | void;
       deleteWhisperModel: (
         modelName: string
       ) => Promise<WhisperModelDeleteResult>;

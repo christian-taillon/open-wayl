@@ -88,6 +88,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   checkModelStatus: (modelName) =>
     ipcRenderer.invoke("check-model-status", modelName),
   listWhisperModels: () => ipcRenderer.invoke("list-whisper-models"),
+
+  // Nemotron API
+  nemotronCheckEnv: () => ipcRenderer.invoke("nemotron-check-env"),
+  nemotronCheckGPU: () => ipcRenderer.invoke("nemotron-check-gpu"),
+  nemotronInstallEnv: () => ipcRenderer.invoke("nemotron-install-env"),
+  nemotronDownloadModel: () => ipcRenderer.invoke("nemotron-download-model"),
+  onNemotronInstallProgress: registerListener("nemotron-install-progress"),
+  onNemotronDownloadProgress: registerListener("nemotron-download-progress"),
   deleteWhisperModel: (modelName) =>
     ipcRenderer.invoke("delete-whisper-model", modelName),
   cancelWhisperDownload: () => ipcRenderer.invoke("cancel-whisper-download"),

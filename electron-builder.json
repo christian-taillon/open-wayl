@@ -19,12 +19,14 @@
     "src/utils.js",
     "src/utils/**/*",
     "src/updater.js",
+    "src/python/**/*",
     "src/components.json",
     "!node_modules/.cache/**/*",
     "!src/node_modules/**/*"
   ],
   "asarUnpack": [
     "whisper_bridge.py",
+    "src/python/**/*",
     "**/node_modules/ffmpeg-static/**/*",
     "**/node_modules/better-sqlite3/**/*"
   ],
