@@ -355,11 +355,18 @@ class NemotronManager extends EventEmitter {
   }
 
   getScriptPath() {
-      // Logic to find src/python/nemotron_daemon.py
-      // In dev:
+      // In production (packaged), python scripts are unpacked to app.asar.unpacked
+      if (app.isPackaged) {
+          return path.join(
+              process.resourcesPath,
+              "app.asar.unpacked",
+              "src",
+              "python",
+              "nemotron_daemon.py"
+          );
+      }
+      // In development
       return path.join(__dirname, "..", "python", "nemotron_daemon.py");
-      // In prod (asar): needs unpacking or copy.
-      // For now assuming dev structure or resources copy.
   }
 
   runCommand(command, args, options = {}) {

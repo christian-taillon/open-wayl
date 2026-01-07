@@ -153,24 +153,50 @@ class IPCHandlers {
         });
 
         // 1. Convert Blob/ArrayBuffer to temp file
-        // Note: NemotronManager expects a file path, while WhisperManager handles conversion itself.
-        // We should let WhisperManager handle the common logic of temp file creation if possible,
-        // or just let WhisperManager do its thing and route if model is nemotron.
 
         if (options.model === "nvidia/nemotron-speech-streaming-en-0.6b") {
             try {
                 // Reuse WhisperManager's temp file creation logic for consistency
-                // We'll call a public method if available, otherwise we might need to expose it or duplicate.
-                // Looking at WhisperManager, createTempAudioFile is internal but we can use it via public transcribe method hack? No.
-                // Let's rely on WhisperManager to handle file creation?
-                // Actually, let's just use WhisperManager's createTempAudioFile by making it accessible or create a new one.
-                // Since `this.whisperManager` is available:
                 const tempPath = await this.whisperManager.createTempAudioFile(audioBlob);
 
-                const text = await this.nemotronManager.transcribe(tempPath);
+                // Convert audio to 16kHz mono WAV using ffmpeg (Nemotron is picky)
+                // We'll use a new temp file for the converted audio
+                const path = require("path");
+                const { spawn } = require("child_process");
+                const fsPromises = require("fs").promises;
+
+                const convertedPath = tempPath.replace(".wav", "_16k.wav");
+                const ffmpegPath = await this.whisperManager.getFFmpegPath();
+
+                if (!ffmpegPath) {
+                    throw new Error("FFmpeg not found for audio conversion");
+                }
+
+                await new Promise((resolve, reject) => {
+                    const args = [
+                        "-y",
+                        "-i", tempPath,
+                        "-ar", "16000",
+                        "-ac", "1",
+                        "-c:a", "pcm_s16le",
+                        convertedPath
+                    ];
+
+                    const proc = spawn(ffmpegPath, args);
+
+                    proc.on("close", (code) => {
+                        if (code === 0) resolve();
+                        else reject(new Error(`FFmpeg conversion failed with code ${code}`));
+                    });
+
+                    proc.on("error", (err) => reject(err));
+                });
+
+                const text = await this.nemotronManager.transcribe(convertedPath);
 
                 // Cleanup
                 await this.whisperManager.cleanupTempFile(tempPath);
+                await this.whisperManager.cleanupTempFile(convertedPath);
 
                 return { success: true, text: text };
             } catch (error) {

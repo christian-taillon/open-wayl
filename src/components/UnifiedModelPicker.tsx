@@ -573,12 +573,22 @@ export default function UnifiedModelPicker({
                 {installProgress.message}
               </span>
             </div>
-            <div className={`w-full ${styles.progressBar} rounded-full h-2`}>
+            {/* Indeterminate progress bar if percentage is static/low for long periods */}
+            <div className={`w-full ${styles.progressBar} rounded-full h-2 overflow-hidden relative`}>
+               {/* Base fill */}
               <div
-                className={`${styles.progressFill} h-2 rounded-full transition-all duration-300 ease-out`}
+                className={`${styles.progressFill} h-full rounded-full transition-all duration-300 ease-out`}
                 style={{ width: `${Math.min(installProgress.percentage, 100)}%` }}
               />
+              {/* Animated overlay for activity indication */}
+              <div
+                className="absolute inset-0 bg-white/30 w-full h-full animate-[shimmer_2s_infinite] -translate-x-full"
+                style={{ backgroundImage: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent)' }}
+              />
             </div>
+            <p className="text-[10px] text-gray-500 mt-2 text-center">
+                This process may take several minutes. Please do not close the application.
+            </p>
           </div>
         );
     }
