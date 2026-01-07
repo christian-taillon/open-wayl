@@ -64,17 +64,28 @@ def run_server(model_name):
             self.model.to(self.device)
 
         def transcribe(self, file_path):
-            # NeMo transcribe returns a list of strings
-            transcriptions = self.model.transcribe([file_path])
-            return transcriptions[0] if transcriptions else ""
+            # Log to stderr so we can see it in Electron logs
+            print(f"[Daemon] Transcribing file: {file_path}", file=sys.stderr)
+            try:
+                # NeMo transcribe returns a list of strings
+                # Using paths2audio_files argument is more explicit
+                transcriptions = self.model.transcribe(paths2audio_files=[file_path], batch_size=1)
+                print(f"[Daemon] Transcription result: {transcriptions}", file=sys.stderr)
+                return transcriptions[0] if transcriptions else ""
+            except Exception as e:
+                print(f"[Daemon] Transcription error: {e}", file=sys.stderr)
+                raise e
 
     try:
+        print("[Daemon] Initializing NemotronService...", file=sys.stderr)
         service = NemotronService()
+        print(f"[Daemon] Service ready on device: {service.device}", file=sys.stderr)
         print(json.dumps({"type": "status", "status": "ready", "device": service.device}), flush=True)
 
         for line in sys.stdin:
             if not line.strip(): continue
             try:
+                print(f"[Daemon] Received request: {line[:100]}...", file=sys.stderr)
                 req = json.loads(line)
                 command = req.get("command")
 
@@ -83,6 +94,7 @@ def run_server(model_name):
                     req_id = req.get("id")
 
                     if not os.path.exists(file_path):
+                        print(f"[Daemon] File not found: {file_path}", file=sys.stderr)
                         print(json.dumps({"type": "error", "message": "File not found", "id": req_id}), flush=True)
                         continue
 
