@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import { Cloud, Lock, Brain, Zap, Globe, Cpu, Download, Check, Wrench } from 'lucide-react';
+import { Cloud, Lock, Brain, Zap, Globe, Cpu, Download, Check, Wrench, AlertCircle, ExternalLink } from 'lucide-react';
 import ApiKeyInput from './ui/ApiKeyInput';
 import { UnifiedModelPickerCompact } from './UnifiedModelPicker';
+import { Alert, AlertDescription } from './ui/alert';
 import { API_ENDPOINTS, buildApiUrl, normalizeBaseUrl } from '../config/constants';
 import { REASONING_PROVIDERS } from '../utils/languages';
 import { modelRegistry } from '../models/ModelRegistry';
@@ -148,12 +149,52 @@ export default function AIModelSelectorEnhanced({
   const lastLoadedBaseRef = useRef<string | null>(null);
   const pendingBaseRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
+  const [llamaCppStatus, setLlamaCppStatus] = useState<{
+    isInstalled: boolean;
+    version?: string;
+    checking: boolean;
+  }>({ isInstalled: false, checking: true });
 
   useEffect(() => {
     return () => {
       isMountedRef.current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (selectedMode === 'local') {
+      checkLlamaCpp();
+    }
+  }, [selectedMode]);
+
+  const checkLlamaCpp = async () => {
+    setLlamaCppStatus(prev => ({ ...prev, checking: true }));
+    try {
+      const result = await window.electronAPI?.llamaCppCheck?.();
+      if (isMountedRef.current) {
+        setLlamaCppStatus({
+          isInstalled: result?.isInstalled || false,
+          version: result?.version,
+          checking: false,
+        });
+      }
+    } catch {
+      if (isMountedRef.current) {
+        setLlamaCppStatus({ isInstalled: false, checking: false });
+      }
+    }
+  };
+
+  const handleInstallLlamaCpp = async () => {
+    try {
+      const result = await window.electronAPI?.llamaCppInstall?.();
+      if (result?.success) {
+        checkLlamaCpp();
+      }
+    } catch (error) {
+      console.error("Installation error:", error);
+    }
+  };
   useEffect(() => {
     setCustomBaseInput(cloudReasoningBaseUrl);
   }, [cloudReasoningBaseUrl]);
@@ -816,6 +857,29 @@ export default function AIModelSelectorEnhanced({
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Llama.cpp Installation Prompt */}
+              {!llamaCppStatus.isInstalled && !llamaCppStatus.checking && (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="space-y-3">
+                    <p>llama.cpp is required to run local AI models.</p>
+                    <div className="flex items-center gap-3">
+                      <Button onClick={handleInstallLlamaCpp} size="sm">
+                        Install llama.cpp
+                      </Button>
+                      <Button
+                        variant="link"
+                        className="p-0 h-auto text-primary"
+                        onClick={() => window.electronAPI?.openExternal("https://github.com/ggerganov/llama.cpp#installation")}
+                      >
+                        Manual installation
+                        <ExternalLink className="ml-1 h-3 w-3" />
+                      </Button>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {/* Local Provider Tabs */}
               <div className="border border-gray-200 rounded-xl overflow-hidden">
                 <div className="flex bg-gray-50 border-b border-gray-200 overflow-x-auto">
