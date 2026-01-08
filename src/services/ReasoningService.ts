@@ -211,6 +211,10 @@ class ReasoningService extends BaseReasoningService {
           result = await this.processWithAnthropic(text, model, agentName, config);
           break;
         case "local":
+        case "qwen":
+        case "mistral":
+        case "llama":
+        case "openai-oss":
           result = await this.processWithLocal(text, model, agentName, config);
           break;
         case "gemini":
