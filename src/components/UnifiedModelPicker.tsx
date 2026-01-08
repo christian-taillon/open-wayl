@@ -168,7 +168,7 @@ export default function UnifiedModelPicker({
     isInstalled: boolean;
     version?: string;
     checking: boolean;
-  }>({ isInstalled: true, checking: false }); // Default to true for now
+  }>({ isInstalled: false, checking: true });
 
   const {
     showConfirmDialog,
@@ -178,8 +178,6 @@ export default function UnifiedModelPicker({
   const styles = useMemo(() => VARIANT_STYLES[variant], [variant]);
 
   // Check llama.cpp installation for LLM models
-  // Commented out for now - defaulting to installed
-  /*
   useEffect(() => {
     if (modelType === 'llm') {
       const checkLlamaCpp = async () => {
@@ -197,7 +195,6 @@ export default function UnifiedModelPicker({
       checkLlamaCpp();
     }
   }, [modelType]);
-  */
 
   const loadModels = useCallback(async () => {
     try {
