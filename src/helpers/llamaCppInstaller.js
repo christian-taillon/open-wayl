@@ -172,7 +172,26 @@ class LlamaCppInstaller {
             if (asset) {
               resolve(asset.browser_download_url);
             } else {
-              reject(new Error(`No asset found for ${this.platform} ${this.arch} with pattern ${pattern}`));
+              // Fallback: Try to construct the URL if asset not found in list
+              // The file naming convention includes the tag name
+              const tagName = release.tag_name;
+              const fallbackUrl = `https://github.com/ggml-org/llama.cpp/releases/download/${tagName}/llama-${tagName}-${pattern}`;
+              
+              // Verify if the fallback URL exists
+              const req = https.request(fallbackUrl, { method: 'HEAD' }, (res) => {
+                if (res.statusCode === 200 || res.statusCode === 302) {
+                  console.log(`Asset not in list, using fallback URL: ${fallbackUrl}`);
+                  resolve(fallbackUrl);
+                } else {
+                  reject(new Error(`No asset found for ${this.platform} ${this.arch} with pattern ${pattern} (and fallback failed)`));
+                }
+              });
+              
+              req.on('error', () => {
+                 reject(new Error(`No asset found for ${this.platform} ${this.arch} with pattern ${pattern}`));
+              });
+              
+              req.end();
             }
           } catch (e) {
             reject(e);
@@ -222,6 +241,7 @@ class LlamaCppInstaller {
       await tar.x({
         file: archivePath,
         cwd: this.installDir,
+        strip: 1,
       });
     } else if (archivePath.endsWith(".zip")) {
       if (!unzipper) throw new Error("unzipper module not loaded");
