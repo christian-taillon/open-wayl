@@ -173,6 +173,12 @@ class ClipboardManager {
     // Detect if the focused window is a terminal emulator
     // Terminals use Ctrl+Shift+V for paste (since Ctrl+V/C are used for process control)
     const isTerminal = () => {
+      // Check for manual override
+      if (process.env.OPEN_WAYL_FORCE_TERMINAL === "true") {
+        this.safeLog("🖥️ Terminal mode forced via OPEN_WAYL_FORCE_TERMINAL");
+        return true;
+      }
+
       // Common terminal emulator class names
       const terminalClasses = [
         "konsole",
@@ -195,19 +201,62 @@ class ClipboardManager {
       try {
         // Try xdotool (works on X11 and XWayland)
         if (commandExists("xdotool")) {
-          const result = spawnSync("xdotool", [
-            "getactivewindow",
-            "getwindowclassname",
-          ]);
+          // Get active window ID first
+          const result = spawnSync("xdotool", ["getactivewindow"]);
+          
           if (result.status === 0) {
-            const className = result.stdout.toString().toLowerCase().trim();
-            const isTerminalWindow = terminalClasses.some((term) =>
-              className.includes(term)
-            );
-            if (isTerminalWindow) {
-              this.safeLog(`🖥️ Terminal detected via xdotool: ${className}`);
+            const windowId = result.stdout.toString().trim();
+            
+            if (windowId) {
+              let className = "";
+              let title = "";
+
+              // 1. Try xprop first (often more reliable for class)
+              if (commandExists("xprop")) {
+                const xpropRes = spawnSync("xprop", ["-id", windowId, "WM_CLASS"]);
+                if (xpropRes.status === 0) {
+                  className = xpropRes.stdout.toString().toLowerCase();
+                  // Output format: WM_CLASS(STRING) = "name", "Class"
+                }
+              }
+
+              // 2. Fallback to xdotool getwindowclassname (if command exists)
+              if (!className) {
+                const classRes = spawnSync("xdotool", ["getwindowclassname", windowId]);
+                if (classRes.status === 0) {
+                  className = classRes.stdout.toString().toLowerCase().trim();
+                }
+              }
+
+              // 3. Fallback to window title (heuristic)
+              if (!className) {
+                const titleRes = spawnSync("xdotool", ["getwindowname", windowId]);
+                if (titleRes.status === 0) {
+                  title = titleRes.stdout.toString().toLowerCase().trim();
+                }
+              }
+
+              // Check class names
+              if (className) {
+                const isTerminalWindow = terminalClasses.some((term) =>
+                  className.includes(term)
+                );
+                if (isTerminalWindow) {
+                  this.safeLog(`🖥️ Terminal detected via class: ${className}`);
+                  return true;
+                }
+              }
+
+              // Check title keywords as last resort
+              if (title) {
+                const titleKeywords = [" vim ", "nvim", "nano", "ssh", "kitty", "terminal"];
+                const isTerminalTitle = titleKeywords.some(keyword => title.includes(keyword));
+                if (isTerminalTitle) {
+                  this.safeLog(`🖥️ Terminal detected via title: ${title}`);
+                  return true;
+                }
+              }
             }
-            return isTerminalWindow;
           }
         }
 
@@ -233,6 +282,7 @@ class ClipboardManager {
         }
       } catch (error) {
         // Silent fallback - if detection fails, assume non-terminal
+        this.safeLog(`Terminal detection error: ${error.message}`);
       }
       return false;
     };
@@ -246,7 +296,10 @@ class ClipboardManager {
     const isGnome = (process.env.XDG_CURRENT_DESKTOP || "").toUpperCase().includes("GNOME");
 
     const inTerminal = isTerminal();
-    const pasteKeys = inTerminal ? "ctrl+shift+v" : "ctrl+v";
+    
+    // Allow manual override of keys via env var, otherwise default based on terminal detection
+    const pasteKeys = process.env.OPEN_WAYL_PASTE_KEYS || (inTerminal ? "ctrl+shift+v" : "ctrl+v");
+    const useShift = pasteKeys.toLowerCase().includes("shift");
 
     // Define paste tools in preference order based on display server
     let candidates = [];
@@ -257,7 +310,7 @@ class ClipboardManager {
       // or ydotool if configured.
       if (!isGnome) {
         candidates.push(
-          inTerminal
+          useShift
             ? {
                 cmd: "wtype",
                 args: ["-M", "ctrl", "-M", "shift", "-k", "v", "-m", "shift", "-m", "ctrl"],
@@ -268,7 +321,8 @@ class ClipboardManager {
       
       candidates.push(
         // ydotool requires uinput permissions but included as fallback
-        inTerminal
+        // Keycodes: 29=Ctrl, 42=Shift, 47=v
+        useShift
           ? { cmd: "ydotool", args: ["key", "29:1", "42:1", "47:1", "47:0", "42:0", "29:0"] }
           : { cmd: "ydotool", args: ["key", "29:1", "47:1", "47:0", "29:0"] },
         // X11 fallback for XWayland
