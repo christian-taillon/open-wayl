@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
+import { Toggle } from "./ui/toggle";
 import { RefreshCw, Download, Command, Mic, Shield } from "lucide-react";
 import MarkdownRenderer from "./ui/MarkdownRenderer";
 import MicPermissionWarning from "./ui/MicPermissionWarning";
@@ -62,6 +63,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     geminiApiKey,
     groqApiKey,
     dictationKey,
+    useGnomeTopBarMode,
     setUseLocalWhisper,
     setWhisperModel,
     setAllowOpenAIFallback,
@@ -80,6 +82,7 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     setGeminiApiKey,
     setGroqApiKey,
     setDictationKey,
+    setUseGnomeTopBarMode,
     updateTranscriptionSettings,
     updateReasoningSettings,
     updateApiKeys,
@@ -101,10 +104,19 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     releaseNotes?: string;
   }>({});
   const [isRemovingModels, setIsRemovingModels] = useState(false);
+  const [isInstallingGnomeExtension, setIsInstallingGnomeExtension] = useState(false);
+  const [gnomeIndicatorStatus, setGnomeIndicatorStatus] = useState({
+    enabled: useGnomeTopBarMode,
+    extensionActive: false,
+    clientCount: 0,
+  });
   const cachePathHint =
     typeof navigator !== "undefined" && /Windows/i.test(navigator.userAgent)
       ? "%USERPROFILE%\\.cache\\openwhispr\\models"
       : "~/.cache/openwhispr/models";
+  const isLinux =
+    typeof window !== "undefined" &&
+    window.electronAPI?.getPlatform?.() === "linux";
 
   const isUpdateAvailable =
     !updateStatus.isDevelopment && (updateStatus.updateAvailable || updateStatus.updateDownloaded);
@@ -213,6 +225,87 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
     };
   }, [showAlertDialog]);
 
+  const refreshGnomeStatus = useCallback(async () => {
+    if (!isLinux || !window.electronAPI?.getGnomeTopBarMode) {
+      return;
+    }
+
+    const result = await window.electronAPI.getGnomeTopBarMode();
+    if (!result) {
+      return;
+    }
+
+    const status = result.status || {};
+    const enabled = typeof result.enabled === "boolean" ? result.enabled : useGnomeTopBarMode;
+    if (enabled !== useGnomeTopBarMode) {
+      setUseGnomeTopBarMode(enabled);
+    }
+
+    setGnomeIndicatorStatus({
+      enabled,
+      extensionActive: Boolean(status.extensionActive),
+      clientCount: status.clientCount ?? 0,
+    });
+  }, [isLinux, setUseGnomeTopBarMode, useGnomeTopBarMode]);
+
+  const handleGnomeToggle = useCallback(
+    async (enabled: boolean) => {
+      setUseGnomeTopBarMode(enabled);
+      if (!window.electronAPI?.setGnomeTopBarMode) {
+        return;
+      }
+
+      const result = await window.electronAPI.setGnomeTopBarMode(enabled);
+      const status = result?.status || {};
+      setGnomeIndicatorStatus({
+        enabled,
+        extensionActive: Boolean(status.extensionActive),
+        clientCount: status.clientCount ?? 0,
+      });
+
+      if (enabled && !status.extensionActive) {
+        showAlertDialog({
+          title: "GNOME Extension Not Detected",
+          description:
+            "OpenWayl did not detect an active GNOME extension. The overlay animation will be used until the extension is enabled.",
+        });
+      }
+    },
+    [setUseGnomeTopBarMode, showAlertDialog]
+  );
+
+  const handleInstallGnomeExtension = useCallback(async () => {
+    if (!window.electronAPI?.installGnomeExtension) {
+      return;
+    }
+
+    setIsInstallingGnomeExtension(true);
+    const result = await window.electronAPI.installGnomeExtension();
+    setIsInstallingGnomeExtension(false);
+
+    if (!result?.success) {
+      showAlertDialog({
+        title: "Install Failed",
+        description: result?.message || "Failed to install GNOME extension.",
+      });
+      return;
+    }
+
+    showAlertDialog({
+      title: "Extension Installed",
+      description:
+        result?.message ||
+        "Enable the OpenWayl extension using GNOME Extensions or Extension Manager.",
+    });
+
+    refreshGnomeStatus();
+  }, [refreshGnomeStatus, showAlertDialog]);
+
+  useEffect(() => {
+    refreshGnomeStatus();
+  }, [refreshGnomeStatus]);
+
+  // Local state for provider selection (overrides computed value)
   const [localReasoningProvider, setLocalReasoningProvider] = useState(() => {
     return localStorage.getItem("reasoningProvider") || reasoningProvider;
   });
@@ -699,6 +792,55 @@ export default function SettingsPage({ activeSection = "general" }: SettingsPage
               </div>
             </div>
 
+            {isLinux && (
+              <div className="border-t pt-8">
+                <div className="flex items-start justify-between gap-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                      GNOME Top Bar Indicator
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      Show recording and processing status in the GNOME Top Bar instead of the floating animation window.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={useGnomeTopBarMode}
+                    onChange={handleGnomeToggle}
+                  />
+                </div>
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center justify-between rounded-lg border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
+                    <span className="text-neutral-700">Extension status</span>
+                    <span
+                      className={`font-medium ${
+                        gnomeIndicatorStatus.extensionActive
+                          ? "text-emerald-600"
+                          : "text-amber-600"
+                      }`}
+                    >
+                      {gnomeIndicatorStatus.extensionActive
+                        ? "Active"
+                        : "Not detected"}
+                    </span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={handleInstallGnomeExtension}
+                    disabled={isInstallingGnomeExtension}
+                    className="w-full"
+                  >
+                    {isInstallingGnomeExtension
+                      ? "Installing GNOME Extension..."
+                      : "Install GNOME Extension"}
+                  </Button>
+                  <p className="text-xs text-neutral-500">
+                    After installing, enable the extension in the GNOME Extensions app or Extension Manager.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Hotkey Section */}
             <div className="border-t pt-8">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Dictation Hotkey</h3>

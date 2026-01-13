@@ -36,6 +36,8 @@ const TrayManager = require("./src/helpers/tray");
 const IPCHandlers = require("./src/helpers/ipcHandlers");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
+const SettingsStore = require("./src/helpers/settingsStore");
+const GnomeIndicatorBridge = require("./src/helpers/gnomeIndicatorBridge");
 
 // Set up PATH for production builds to find system tools (whisper.cpp, ffmpeg)
 function setupProductionPath() {
@@ -72,6 +74,8 @@ const whisperManager = new WhisperManager();
 const trayManager = new TrayManager();
 const updateManager = new UpdateManager();
 const globeKeyManager = new GlobeKeyManager();
+const settingsStore = new SettingsStore();
+const gnomeIndicatorBridge = new GnomeIndicatorBridge({ windowManager });
 let globeKeyAlertShown = false;
 
 if (process.platform === "darwin") {
@@ -108,6 +112,8 @@ const ipcHandlers = new IPCHandlers({
   clipboardManager,
   whisperManager,
   windowManager,
+  settingsStore,
+  gnomeIndicatorBridge,
 });
 
 // Single instance lock
@@ -154,6 +160,11 @@ async function startApp() {
   whisperManager.initializeAtStartup().catch((err) => {
     // Whisper not being available at startup is not critical
   });
+
+  const gnomeTopBarMode = settingsStore.get("gnomeTopBarMode", false);
+  windowManager.setGnomeTopBarMode(gnomeTopBarMode);
+  await gnomeIndicatorBridge.start();
+  gnomeIndicatorBridge.setEnabled(gnomeTopBarMode);
 
   // Create main window
   try {

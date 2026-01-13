@@ -154,6 +154,15 @@ export function useSettings() {
     deserialize: String,
   });
 
+  const [useGnomeTopBarMode, setUseGnomeTopBarMode] = useLocalStorage(
+    "useGnomeTopBarMode",
+    false,
+    {
+      serialize: String,
+      deserialize: (value) => value === "true",
+    }
+  );
+
   // Computed values
   const reasoningProvider = getModelProvider(reasoningModel);
 
@@ -231,6 +240,7 @@ export function useSettings() {
     geminiApiKey,
     groqApiKey,
     dictationKey,
+    useGnomeTopBarMode,
     setUseLocalWhisper,
     setWhisperModel,
     setAllowOpenAIFallback,
@@ -243,6 +253,7 @@ export function useSettings() {
     setCloudReasoningBaseUrl,
     setUseReasoningModel,
     setReasoningModel,
+    setUseGnomeTopBarMode,
     setReasoningProvider: (provider: string) => {
       if (provider !== "custom") {
         setReasoningModel("");

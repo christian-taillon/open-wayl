@@ -10,6 +10,8 @@ class IPCHandlers {
     this.whisperManager = managers.whisperManager;
     this.windowManager = managers.windowManager;
     this.modelManager = managers.modelManager;
+    this.settingsStore = managers.settingsStore;
+    this.gnomeIndicatorBridge = managers.gnomeIndicatorBridge;
     this.setupHandlers();
   }
 
@@ -64,6 +66,42 @@ class IPCHandlers {
     ipcMain.handle("set-main-window-interactivity", (event, shouldCapture) => {
       this.windowManager.setMainWindowInteractivity(Boolean(shouldCapture));
       return { success: true };
+    });
+
+    ipcMain.handle("gnome-set-top-bar-mode", (event, enabled) => {
+      const isEnabled = Boolean(enabled);
+      this.settingsStore?.set("gnomeTopBarMode", isEnabled);
+      this.gnomeIndicatorBridge?.setEnabled(isEnabled);
+      return {
+        success: true,
+        status: this.gnomeIndicatorBridge?.getStatus?.() || {
+          enabled: isEnabled,
+          clientCount: 0,
+          extensionActive: false,
+        },
+      };
+    });
+
+    ipcMain.handle("gnome-get-top-bar-mode", () => {
+      const enabled = this.settingsStore?.get("gnomeTopBarMode", false) ?? false;
+      return {
+        enabled,
+        status: this.gnomeIndicatorBridge?.getStatus?.() || {
+          enabled,
+          clientCount: 0,
+          extensionActive: false,
+        },
+      };
+    });
+
+    ipcMain.handle("gnome-set-animation-state", (event, state = {}) => {
+      this.gnomeIndicatorBridge?.setState?.(state);
+      return { success: true };
+    });
+
+    ipcMain.handle("gnome-install-extension", async () => {
+      const { installGnomeExtension } = require("./gnomeExtensionInstaller");
+      return await installGnomeExtension();
     });
 
     // Environment handlers

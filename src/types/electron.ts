@@ -64,6 +64,22 @@ export interface AppVersionResult {
   version: string;
 }
 
+export interface GnomeIndicatorStatus {
+  enabled: boolean;
+  status: {
+    enabled: boolean;
+    clientCount: number;
+    extensionActive: boolean;
+  };
+  success?: boolean;
+}
+
+export interface GnomeExtensionInstallResult {
+  success: boolean;
+  message: string;
+  path?: string;
+}
+
 export interface WhisperDownloadProgressData {
   type: string;
   model: string;
@@ -202,6 +218,13 @@ declare global {
       startWindowDrag: () => Promise<void>;
       stopWindowDrag: () => Promise<void>;
       setMainWindowInteractivity: (interactive: boolean) => Promise<void>;
+      getGnomeTopBarMode: () => Promise<GnomeIndicatorStatus>;
+      setGnomeTopBarMode: (enabled: boolean) => Promise<GnomeIndicatorStatus>;
+      setGnomeAnimationState: (state: {
+        isRecording: boolean;
+        isProcessing: boolean;
+      }) => Promise<{ success: boolean }>;
+      installGnomeExtension: () => Promise<GnomeExtensionInstallResult>;
 
       // App management
       appQuit: () => Promise<void>;

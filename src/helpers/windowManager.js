@@ -15,6 +15,10 @@ class WindowManager {
     this.isQuitting = false;
     this.isMainWindowInteractive = false;
     this.loadErrorShown = false;
+    this.gnomeTopBarMode = false;
+    this.gnomeExtensionActive = false;
+    this.gnomeAwaitingExtension = false;
+    this.gnomeFallbackTimer = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
@@ -245,6 +249,10 @@ class WindowManager {
 
   showDictationPanel(options = {}) {
     const { focus = false } = options;
+    if (!this.shouldShowMainWindow()) {
+      return;
+    }
+
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (!this.mainWindow.isVisible()) {
         if (typeof this.mainWindow.showInactive === "function") {
@@ -281,6 +289,60 @@ class WindowManager {
     }
   }
 
+  setGnomeTopBarMode(enabled) {
+    this.gnomeTopBarMode = Boolean(enabled);
+    this.clearGnomeFallbackTimer();
+
+    if (this.gnomeTopBarMode && !this.gnomeExtensionActive) {
+      this.gnomeAwaitingExtension = true;
+      this.gnomeFallbackTimer = setTimeout(() => {
+        this.gnomeAwaitingExtension = false;
+        if (this.gnomeTopBarMode && !this.gnomeExtensionActive) {
+          this.showDictationPanel({ focus: false });
+        }
+      }, 1500);
+    } else {
+      this.gnomeAwaitingExtension = false;
+    }
+
+    if (this.shouldShowMainWindow()) {
+      this.showDictationPanel({ focus: false });
+    } else {
+      this.hideDictationPanel();
+    }
+  }
+
+  setGnomeExtensionActive(active) {
+    this.gnomeExtensionActive = Boolean(active);
+
+    if (this.gnomeExtensionActive) {
+      this.gnomeAwaitingExtension = false;
+      this.clearGnomeFallbackTimer();
+      this.hideDictationPanel();
+      return;
+    }
+
+    if (this.gnomeTopBarMode) {
+      this.gnomeAwaitingExtension = false;
+      this.showDictationPanel({ focus: false });
+    }
+  }
+
+  clearGnomeFallbackTimer() {
+    if (this.gnomeFallbackTimer) {
+      clearTimeout(this.gnomeFallbackTimer);
+      this.gnomeFallbackTimer = null;
+    }
+  }
+
+  shouldShowMainWindow() {
+    if (!this.gnomeTopBarMode) {
+      return true;
+    }
+
+    return !this.gnomeExtensionActive && !this.gnomeAwaitingExtension;
+  }
+
   isDictationPanelVisible() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return false;
@@ -300,7 +362,7 @@ class WindowManager {
 
     this.mainWindow.once("ready-to-show", () => {
       this.enforceMainWindowOnTop();
-      if (!this.mainWindow.isVisible()) {
+      if (this.shouldShowMainWindow() && !this.mainWindow.isVisible()) {
         if (typeof this.mainWindow.showInactive === "function") {
           this.mainWindow.showInactive();
         } else {
@@ -319,6 +381,7 @@ class WindowManager {
 
     this.mainWindow.on("closed", () => {
       this.dragManager.cleanup();
+      this.clearGnomeFallbackTimer();
       this.mainWindow = null;
       this.isMainWindowInteractive = false;
     });

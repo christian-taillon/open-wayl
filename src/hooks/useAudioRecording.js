@@ -15,6 +15,10 @@ export const useAudioRecording = (toast, options = {}) => {
       onStateChange: ({ isRecording, isProcessing }) => {
         setIsRecording(isRecording);
         setIsProcessing(isProcessing);
+        window.electronAPI?.setGnomeAnimationState?.({
+          isRecording,
+          isProcessing,
+        });
       },
       onError: (error) => {
         toast({

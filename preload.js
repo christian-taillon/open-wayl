@@ -104,6 +104,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
   setMainWindowInteractivity: (interactive) =>
     ipcRenderer.invoke("set-main-window-interactivity", interactive),
 
+  // GNOME indicator
+  getGnomeTopBarMode: () => ipcRenderer.invoke("gnome-get-top-bar-mode"),
+  setGnomeTopBarMode: (enabled) =>
+    ipcRenderer.invoke("gnome-set-top-bar-mode", enabled),
+  setGnomeAnimationState: (state) =>
+    ipcRenderer.invoke("gnome-set-animation-state", state),
+  installGnomeExtension: () => ipcRenderer.invoke("gnome-install-extension"),
+
   // Update functions
   checkForUpdates: () => ipcRenderer.invoke("check-for-updates"),
   downloadUpdate: () => ipcRenderer.invoke("download-update"),

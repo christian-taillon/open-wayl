@@ -19,6 +19,7 @@
     "src/utils/**/*",
     "src/updater.js",
     "src/components.json",
+    "extensions/**/*",
     "!node_modules/.cache/**/*",
     "!src/node_modules/**/*"
   ],
