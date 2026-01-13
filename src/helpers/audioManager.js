@@ -348,8 +348,7 @@ class AudioManager {
 
     try {
       const result = await ReasoningService.processText(text, model, agentName, { provider });
-      
-      const processingTime = Date.now() - startTime;
+
       const processingTime = Date.now() - startTime;
 
       logger.logReasoning("REASONING_SERVICE_COMPLETE", {
@@ -487,8 +486,13 @@ class AudioManager {
           provider: reasoningProvider,
         });
 
-        const result = await this.processWithReasoningModel(preparedText, reasoningModel, agentName, reasoningProvider);
-        
+        const result = await this.processWithReasoningModel(
+          preparedText,
+          reasoningModel,
+          agentName,
+          reasoningProvider
+        );
+
         logger.logReasoning("REASONING_SUCCESS", {
           resultLength: result.length,
           resultPreview: result.substring(0, 100) + (result.length > 100 ? "..." : ""),

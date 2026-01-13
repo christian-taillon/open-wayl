@@ -239,10 +239,10 @@ class ClipboardManager {
         if (commandExists("xdotool")) {
           // Get active window ID first
           const result = spawnSync("xdotool", ["getactivewindow"]);
-          
+
           if (result.status === 0) {
             const windowId = result.stdout.toString().trim();
-            
+
             if (windowId) {
               let className = "";
               let title = "";
@@ -274,9 +274,7 @@ class ClipboardManager {
 
               // Check class names
               if (className) {
-                const isTerminalWindow = terminalClasses.some((term) =>
-                  className.includes(term)
-                );
+                const isTerminalWindow = terminalClasses.some((term) => className.includes(term));
                 if (isTerminalWindow) {
                   this.safeLog(`🖥️ Terminal detected via class: ${className}`);
                   return true;
@@ -286,7 +284,7 @@ class ClipboardManager {
               // Check title keywords as last resort
               if (title) {
                 const titleKeywords = [" vim ", "nvim", "nano", "ssh", "kitty", "terminal"];
-                const isTerminalTitle = titleKeywords.some(keyword => title.includes(keyword));
+                const isTerminalTitle = titleKeywords.some((keyword) => title.includes(keyword));
                 if (isTerminalTitle) {
                   this.safeLog(`🖥️ Terminal detected via title: ${title}`);
                   return true;
@@ -325,19 +323,22 @@ class ClipboardManager {
     const isWayland =
       (process.env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" ||
       !!process.env.WAYLAND_DISPLAY;
-    
+
     // Check for GNOME, where wtype is typically not supported
     const isGnome = (process.env.XDG_CURRENT_DESKTOP || "").toUpperCase().includes("GNOME");
 
     const inTerminal = isTerminal();
-    
+    const preferShiftPaste = isWayland && isGnome;
+
     // Allow manual override of keys via env var, otherwise default based on terminal detection
-    const pasteKeys = process.env.OPEN_WAYL_PASTE_KEYS || (inTerminal ? "ctrl+shift+v" : "ctrl+v");
+    const pasteKeys =
+      process.env.OPEN_WAYL_PASTE_KEYS ||
+      (inTerminal || preferShiftPaste ? "ctrl+shift+v" : "ctrl+v");
     const useShift = pasteKeys.toLowerCase().includes("shift");
 
     // Define paste tools in preference order based on display server
     let candidates = [];
-    
+
     if (isWayland) {
       // On GNOME Wayland, wtype is not supported by the compositor (Mutter).
       // We skip it to fall back to xdotool (which works for XWayland apps)
@@ -352,7 +353,7 @@ class ClipboardManager {
             : { cmd: "wtype", args: ["-M", "ctrl", "-k", "v", "-m", "ctrl"] }
         );
       }
-      
+
       candidates.push(
         // ydotool requires uinput permissions but included as fallback
         // Keycodes: 29=Ctrl, 42=Shift, 47=v

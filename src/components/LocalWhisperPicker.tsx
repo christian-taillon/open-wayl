@@ -30,7 +30,13 @@ export default function LocalWhisperPicker({
   className = "",
   variant = "settings",
 }: LocalWhisperPickerProps) {
-  const [models, setModels] = useState<WhisperModel[]>([]);
+  const [models, setModels] = useState<WhisperModel[]>(() =>
+    Object.entries(WHISPER_MODEL_INFO).map(([model, info]) => ({
+      model,
+      size_mb: info.sizeMb,
+      downloaded: false,
+    }))
+  );
   const [loadingModels, setLoadingModels] = useState(false);
   const hasLoadedRef = useRef(false);
   const downloadingModelRef = useRef<string | null>(null);
@@ -42,13 +48,12 @@ export default function LocalWhisperPicker({
   const loadModels = useCallback(async () => {
     try {
       setLoadingModels(true);
-      const result = await window.electronAPI?.listWhisperModels();
+      const result = await window.electronAPI?.listWhisperModels?.();
       if (result?.success) {
         setModels(result.models);
       }
     } catch (error) {
       console.error("[LocalWhisperPicker] Failed to load models:", error);
-      setModels([]);
     } finally {
       setLoadingModels(false);
     }

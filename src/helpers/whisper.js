@@ -68,6 +68,18 @@ class WhisperManager {
     return path.join(this.getModelsDir(), `ggml-${modelName}.bin`);
   }
 
+  getWhisperInstallHint() {
+    if (process.platform === "darwin") {
+      return "Install it with Homebrew: brew install whisper-cpp";
+    }
+
+    if (process.platform === "win32") {
+      return "Reinstall the app or ensure the bundled whisper.cpp binary is available";
+    }
+
+    return "Build or install whisper.cpp and ensure `whisper-cpp` is on your PATH (https://github.com/ggml-org/whisper.cpp)";
+  }
+
   getBundledBinaryPath() {
     const platform = process.platform;
     const arch = process.arch;
@@ -106,8 +118,60 @@ class WhisperManager {
   async getSystemBinaryPath() {
     const binaryNames =
       process.platform === "win32"
-        ? ["whisper.exe", "whisper-cpp.exe"]
-        : ["whisper", "whisper-cpp", "main"];
+        ? ["whisper-cpp.exe", "whisper.exe"]
+        : ["whisper-cpp", "main", "whisper"];
+
+    const getHelpOutput = async (binaryPath) => {
+      return await new Promise((resolve, reject) => {
+        const proc = spawn(binaryPath, ["--help"], { stdio: ["ignore", "pipe", "pipe"] });
+        let stdout = "";
+        let stderr = "";
+        let settled = false;
+
+        const timeout = setTimeout(() => {
+          killProcess(proc, "SIGTERM");
+          if (!settled) {
+            settled = true;
+            reject(new Error("Help command timed out"));
+          }
+        }, TIMEOUTS.QUICK_CHECK);
+
+        const finalize = (resolver, value) => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timeout);
+          resolver(value);
+        };
+
+        proc.stdout.on("data", (data) => {
+          stdout += data.toString();
+        });
+
+        proc.stderr.on("data", (data) => {
+          stderr += data.toString();
+        });
+
+        proc.on("close", () => {
+          finalize(resolve, `${stdout}\n${stderr}`.trim());
+        });
+
+        proc.on("error", (err) => {
+          finalize(reject, err);
+        });
+      });
+    };
+
+    const isWhisperCpp = (helpText) => {
+      const normalized = helpText.toLowerCase();
+      if (!normalized) return false;
+      if (normalized.includes("output_format")) return false;
+      return (
+        normalized.includes("whisper.cpp") ||
+        normalized.includes("whisper-cpp") ||
+        normalized.includes("--output-json") ||
+        normalized.includes("-of")
+      );
+    };
 
     for (const name of binaryNames) {
       try {
@@ -115,6 +179,15 @@ class WhisperManager {
         const { output } = await runCommand(checkCmd, [name], { timeout: TIMEOUTS.QUICK_CHECK });
         const binaryPath = output.trim().split("\n")[0];
         if (binaryPath && fs.existsSync(binaryPath)) {
+          try {
+            const helpOutput = await getHelpOutput(binaryPath);
+            if (!isWhisperCpp(helpOutput)) {
+              continue;
+            }
+          } catch {
+            // If help fails, skip to avoid picking unsupported binaries
+            continue;
+          }
           return binaryPath;
         }
       } catch {
@@ -125,11 +198,29 @@ class WhisperManager {
     // Check common installation paths
     const commonPaths =
       process.platform === "darwin"
-        ? ["/opt/homebrew/bin/whisper", "/usr/local/bin/whisper"]
-        : ["/usr/bin/whisper", "/usr/local/bin/whisper"];
+        ? [
+            "/opt/homebrew/bin/whisper-cpp",
+            "/usr/local/bin/whisper-cpp",
+            "/opt/homebrew/bin/whisper",
+            "/usr/local/bin/whisper",
+          ]
+        : [
+            "/usr/bin/whisper-cpp",
+            "/usr/local/bin/whisper-cpp",
+            "/usr/bin/whisper",
+            "/usr/local/bin/whisper",
+          ];
 
     for (const p of commonPaths) {
       if (fs.existsSync(p)) {
+        try {
+          const helpOutput = await getHelpOutput(p);
+          if (!isWhisperCpp(helpOutput)) {
+            continue;
+          }
+        } catch {
+          continue;
+        }
         return p;
       }
     }
@@ -191,9 +282,8 @@ class WhisperManager {
 
     const binaryPath = await this.getWhisperBinaryPath();
     if (!binaryPath) {
-      throw new Error(
-        "whisper.cpp not found. Please install it via Homebrew (brew install whisper-cpp) or ensure it is bundled with the app."
-      );
+      const installHint = this.getWhisperInstallHint();
+      throw new Error(`whisper.cpp not found. ${installHint}.`);
     }
 
     const tempAudioPath = await this.createTempAudioFile(audioBlob);
@@ -380,10 +470,17 @@ class WhisperManager {
 
     const cleanupJsonFile = () => fsPromises.unlink(jsonOutputPath).catch(() => {});
 
+    const env = { ...process.env };
+    if (process.platform === "linux") {
+      const libPath = path.dirname(binaryPath);
+      env.LD_LIBRARY_PATH = env.LD_LIBRARY_PATH ? `${libPath}:${env.LD_LIBRARY_PATH}` : libPath;
+    }
+
     const { code, stderr } = await new Promise((resolve, reject) => {
       const whisperProcess = spawn(binaryPath, args, {
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
+        env,
       });
 
       let stderrData = "";

@@ -885,7 +885,6 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 I use an external script (Skip this step)
               </Button>
             </div>
-            </div>
           </div>
         );
 

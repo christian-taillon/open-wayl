@@ -72,7 +72,13 @@ export default function TranscriptionModelPicker({
   className = "",
   variant = "settings",
 }: TranscriptionModelPickerProps) {
-  const [localModels, setLocalModels] = useState<WhisperModel[]>([]);
+  const [localModels, setLocalModels] = useState<WhisperModel[]>(() =>
+    Object.entries(WHISPER_MODEL_INFO).map(([model, info]) => ({
+      model,
+      size_mb: info.sizeMb,
+      downloaded: false,
+    }))
+  );
   const [loadingModels, setLoadingModels] = useState(false);
   const [internalLocalProvider, setInternalLocalProvider] = useState(selectedLocalProvider);
   const hasLoadedRef = useRef(false);
@@ -93,13 +99,12 @@ export default function TranscriptionModelPicker({
 
     try {
       setLoadingModels(true);
-      const result = await window.electronAPI?.listWhisperModels();
+      const result = await window.electronAPI?.listWhisperModels?.();
       if (result?.success) {
         setLocalModels(result.models);
       }
     } catch (error) {
       console.error("[TranscriptionModelPicker] Failed to load models:", error);
-      setLocalModels([]);
     } finally {
       setLoadingModels(false);
       isLoadingRef.current = false;
@@ -159,11 +164,17 @@ export default function TranscriptionModelPicker({
     return () => window.removeEventListener("openwhispr-models-cleared", handleModelsCleared);
   }, [loadLocalModels]);
 
-  const { downloadingModel, downloadProgress, downloadModel, deleteModel, isDownloadingModel } =
-    useModelDownload({
-      modelType: "whisper",
-      onDownloadComplete: loadLocalModels,
-    });
+  const {
+    downloadingModel,
+    downloadProgress,
+    downloadModel,
+    deleteModel,
+    isDownloadingModel,
+    isDownloading,
+  } = useModelDownload({
+    modelType: "whisper",
+    onDownloadComplete: loadLocalModels,
+  });
 
   const handleModeChange = useCallback(
     (isLocal: boolean) => {

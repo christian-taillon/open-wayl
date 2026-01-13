@@ -25,6 +25,28 @@ class WindowManager {
     });
   }
 
+  attachRendererLogging(window, label) {
+    if (process.env.NODE_ENV !== "development" || !window?.webContents) {
+      return;
+    }
+
+    window.webContents.on("console-message", (event) => {
+      const { level, message, lineNumber, sourceId } = event;
+      const prefix = `[Renderer:${label}]`;
+      const location = sourceId ? ` ${sourceId}:${lineNumber}` : "";
+      if (message) {
+        console.log(`${prefix} ${message}${location}`);
+      }
+      if (level === 3 && message) {
+        console.error(`${prefix} ${message}${location}`);
+      }
+    });
+
+    window.webContents.on("render-process-gone", (_event, details) => {
+      console.error(`[Renderer:${label}] process gone:`, details);
+    });
+  }
+
   async createMainWindow() {
     const display = screen.getPrimaryDisplay();
     const position = WindowPositionUtil.getMainWindowPosition(display);
@@ -38,6 +60,8 @@ class WindowManager {
       ...MAIN_WINDOW_CONFIG,
       ...position,
     });
+
+    this.attachRendererLogging(this.mainWindow, "main");
 
     console.log("[WindowManager] Main window created, id:", this.mainWindow.id);
 
@@ -159,6 +183,8 @@ class WindowManager {
     }
 
     this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
+
+    this.attachRendererLogging(this.controlPanelWindow, "control-panel");
 
     const visibilityTimer = setTimeout(() => {
       if (!this.controlPanelWindow || this.controlPanelWindow.isDestroyed()) {

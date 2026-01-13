@@ -41,12 +41,18 @@ class DevServerManager {
   static getAppUrl(isControlPanel = false) {
     if (process.env.NODE_ENV === "development") {
       return isControlPanel ? "http://localhost:5174/?panel=true" : "http://localhost:5174/";
-    } else {
-      const path = require("path");
-      const htmlPath = path.join(__dirname, "..", "..", "src", "dist", "index.html");
-      const url = isControlPanel ? `file://${htmlPath}?panel=true` : `file://${htmlPath}`;
-      return url;
     }
+
+    const { app } = require("electron");
+    const path = require("path");
+    const { pathToFileURL } = require("url");
+    const appPath = app?.getAppPath ? app.getAppPath() : path.join(__dirname, "..", "..");
+    const htmlPath = path.join(appPath, "src", "dist", "index.html");
+    const appUrl = pathToFileURL(htmlPath);
+    if (isControlPanel) {
+      appUrl.searchParams.set("panel", "true");
+    }
+    return appUrl.toString();
   }
 }
 
