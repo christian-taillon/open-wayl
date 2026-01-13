@@ -5,6 +5,133 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-01-13
+
+### Fixed
+- **React Version Mismatch**: Fixed blank screen caused by incompatible React and React-DOM versions in package-lock.json
+
+## [1.2.1] - 2026-01-13
+
+### Fixed
+- **Blank Screen on Upgrade**: Fixed white screen issue for users upgrading from older versions with different onboarding step counts. The onboarding step index is now properly clamped to valid range.
+
+## [1.2.0] - 2026-01-13
+
+### Added
+- **Delete All Whisper Models**: New option to delete all downloaded Whisper models at once
+- **Model Deletion Confirmation**: Added confirmation dialog when deleting models in settings
+
+### Changed
+- **Migrated to whisper.cpp**: Replaced Python-based Whisper with native whisper.cpp for faster, more reliable transcription
+  - No longer requires Python installation
+  - WebM-to-WAV audio conversion built-in
+  - Significantly improved startup and transcription speed
+- **Streamlined Onboarding**: Simplified setup flow with fewer steps now that Python is not required
+- **Download Cancellation**: Added ability to cancel in-progress model downloads
+- **CI/CD Updates**: Updated build and release workflows
+
+### Fixed
+- **IPC Handler**: Fixed broken IPC handler for model operations
+- **Logging**: Standardized logging across the application
+- **React Hook Dependencies**: Improved React hook dependency arrays for better performance
+- **Button Styling**: Fixed button styling consistency across the application
+
+### Removed
+- **Python Dependency**: Removed Python requirement and all related installation code
+- **whisper_bridge.py**: Removed Python-based Whisper bridge in favor of native whisper.cpp
+
+## [1.1.2] - 2026-01-12
+
+### Added
+- **Linux Package Dependencies**: Recommended xdotool, wtype, and python3 packages for Linux users
+
+### Fixed
+- **Python Installation Race Condition**: Fixed race condition in Python installation check that could cause installation to fail or hang
+
+## [1.1.1] - 2026-01-12
+
+### Added
+- **Cross-Platform Paste Tools Detection**: Onboarding now detects and guides users through installing paste tools on Linux and Windows with auto-grant accessibility
+
+### Changed
+- **Qwen Model Compatibility**: Disabled thinking mode for Qwen models on Groq to prevent compatibility issues
+- **Model Registry Refactor**: disableThinking flag now uses the centralized model registry
+- **Consolidated ColorScheme Types**: Removed redundant default exports and cleaned up inline font styles
+- **Provider Icons**: Use static imports for provider icons to fix Vite bundling issues
+
+### Fixed
+- **Recording Cancellation**: Restored cancel recording functionality that was accidentally removed
+- **Model Downloads**: Implemented atomic downloads with temp file pattern and robust cleanup handling for cross-platform reliability
+- **Incomplete Download Prevention**: Model file size validation now prevents incomplete downloads from showing as complete
+- **Windows PowerShell Performance**: Optimized paste startup time on Windows
+
+## [1.1.0] - 2026-01-10
+
+### Added
+- **Compound Hotkey Support**: Use multi-key combinations like `Cmd+Shift+K` or `Ctrl+Alt+D` for dictation
+- **Groq API Integration**: Ultra-fast AI inference with Groq's cloud API
+- **Auto-Update UI**: Download progress bars and install button in settings
+- **Recording Cancellation**: Cancel an in-progress recording without transcribing
+- **Release Notes Viewer**: Markdown-rendered release notes in settings
+
+### Changed
+- **Major Hotkey Refactor**: Complete rewrite of hotkey selection with improved reliability and validation
+- **Consolidated Model Registry**: Single source of truth for all AI models (`modelRegistryData.json`)
+- **Unified Model Picker**: Reusable component for both transcription and reasoning model selection
+- **Improved Latency Logging**: Numbered stage logs for recording, transcription, reasoning, and paste timing
+- **Reduced Paste Delay**: Lowered from 100ms to 50ms for faster text insertion
+- **Code Quality**: Added ESLint, Prettier for JS/TS, and Ruff for Python
+
+### Fixed
+- **Windows 11 Compatibility**: Fixed PATH separator, cache directories, and process termination
+- **Python Virtual Environment**: Fixed race condition and added Arch Linux venv support
+- **Microphone Detection**: Improved onboarding flow for missing inputs with deep-linking to system settings
+- **Recording State Alignment**: Recording now aligns to MediaRecorder's actual start/stop events
+- **Caching Optimizations**: Cached accessibility, paste tool, and FFmpeg checks to reduce process spawns
+- **Window Titles**: Electron window titles now set correctly after page load
+
+## [1.0.15] - 2026-01-05
+
+### Added
+- Button to fully quit OpenWhispr processes from the application
+- Linux terminal detection with automatic paste key switching (Ctrl+Shift+V for terminals)
+
+### Changed
+- Standardized logging on log levels with renderer IPC and `.env` refresh for consistent debug output
+
+### Fixed
+- Use `kdotool` for Wayland terminal detection, improving clipboard paste reliability
+- Increased delay before restoring clipboard to avoid race conditions during paste operations
+- Persist OpenAI key before onboarding test to prevent key loss during setup
+- Windows Python discovery now correctly handles output parsing
+- Keep FFmpeg debug schema as boolean type
+- Fixed OpenWhispr documentation paths
+- Windows: Resolved issue #16 with WAV validation, registry-based Python detection, and normalized FFmpeg paths
+
+## [1.0.13] - 2025-12-24
+
+### Added
+- Enhanced Linux support with Wayland compatibility, multiple package formats (AppImage, deb, rpm, Flatpak), and native window controls
+- Auto-detect existing Python during onboarding and gate the installer with a recheck option
+- "Use Existing Python" skip flow to onboarding with confirmation dialog
+
+### Changed
+- Reuse audio manager and stabilize dictation toggle callback to fix recording latency
+- Add cleanup functions to IPC listeners to prevent memory leaks
+- Make Flatpak opt-in for local builds only
+
+### Fixed
+- Optimized transcription pipeline with caching, batched reads, and non-blocking operations for improved performance
+- Reference error in settings page
+- Removed redundant audio listener causing unnecessary processing
+- Added IPC listener cleanup to prevent memory leaks
+- Performance improvements: removed duplicate useEffect, fixed blur causing re-renders
+
+### CI/CD
+- Add caching for Electron and Flatpak downloads
+- Add Flatpak runtime installation to workflow
+- Add Linux packaging dependencies to GitHub Actions workflow
+
 ## [1.0.12] - 2025-11-13
 
 ### Added

@@ -87,7 +87,7 @@ class IPCHandlers {
         }
         return { success: true };
       } catch (error) {
-        console.error("Failed to save settings:", error);
+        debugLogger.error("Failed to save settings:", error);
         return { success: false, error: error.message };
       }
     });
@@ -141,105 +141,51 @@ class IPCHandlers {
       return this.clipboardManager.writeClipboard(text);
     });
 
+    ipcMain.handle("check-paste-tools", async () => {
+      return this.clipboardManager.checkPasteTools();
+    });
+
     // Whisper handlers
-    ipcMain.handle(
-      "transcribe-local-whisper",
-      async (event, audioBlob, options = {}) => {
-        debugLogger.log('transcribe-local-whisper called', {
-          audioBlobType: typeof audioBlob,
-          audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0,
-          options
+    ipcMain.handle("transcribe-local-whisper", async (event, audioBlob, options = {}) => {
+      debugLogger.log("transcribe-local-whisper called", {
+        audioBlobType: typeof audioBlob,
+        audioBlobSize: audioBlob?.byteLength || audioBlob?.length || 0,
+        options,
+      });
+
+      try {
+        const result = await this.whisperManager.transcribeLocalWhisper(audioBlob, options);
+
+        debugLogger.log("Whisper result", {
+          success: result.success,
+          hasText: !!result.text,
+          message: result.message,
+          error: result.error,
         });
-        
-        try {
-          const result = await this.whisperManager.transcribeLocalWhisper(
-            audioBlob,
-            options
-          );
 
-          debugLogger.log('Whisper result', {
-            success: result.success,
-            hasText: !!result.text,
-            message: result.message,
-            error: result.error
-          });
-          
-          // Check if no audio was detected and send appropriate event
-          if (!result.success && result.message === "No audio detected") {
-            debugLogger.log('Sending no-audio-detected event to renderer');
-            event.sender.send("no-audio-detected");
-          }
-
-          return result;
-        } catch (error) {
-          debugLogger.error('Local Whisper transcription error', error);
-          throw error;
+        // Check if no audio was detected and send appropriate event
+        if (!result.success && result.message === "No audio detected") {
+          debugLogger.log("Sending no-audio-detected event to renderer");
+          event.sender.send("no-audio-detected");
         }
+
+        return result;
+      } catch (error) {
+        debugLogger.error("Local Whisper transcription error", error);
+        throw error;
       }
-    );
+    });
 
     ipcMain.handle("check-whisper-installation", async (event) => {
       return this.whisperManager.checkWhisperInstallation();
     });
 
-    ipcMain.handle("check-python-installation", async (event) => {
-      return this.whisperManager.checkPythonInstallation();
-    });
-
-    ipcMain.handle("install-python", async (event) => {
-      try {
-        const result = await this.whisperManager.installPython((progress) => {
-          event.sender.send("python-install-progress", {
-            type: "progress",
-            stage: progress.stage,
-            percentage: progress.percentage,
-          });
-        });
-        return result;
-      } catch (error) {
-        throw error;
-      }
-    });
-
-    ipcMain.handle("install-whisper", async (event) => {
-      try {
-        // Set up progress forwarding for installation
-        const originalConsoleLog = console.log;
-        console.log = (...args) => {
-          const message = args.join(" ");
-          if (
-            message.includes("Installing") ||
-            message.includes("Downloading") ||
-            message.includes("Collecting")
-          ) {
-            event.sender.send("whisper-install-progress", {
-              type: "progress",
-              message: message,
-            });
-          }
-          originalConsoleLog(...args);
-        };
-
-        const result = await this.whisperManager.installWhisper();
-
-        // Restore original console.log
-        console.log = originalConsoleLog;
-
-        return result;
-      } catch (error) {
-        throw error;
-      }
-    });
-
     ipcMain.handle("download-whisper-model", async (event, modelName) => {
       try {
-        const result = await this.whisperManager.downloadWhisperModel(
-          modelName,
-          (progressData) => {
-            // Forward progress updates to the renderer
-            event.sender.send("whisper-download-progress", progressData);
-          }
-        );
+        const result = await this.whisperManager.downloadWhisperModel(modelName, (progressData) => {
+          // Forward progress updates to the renderer
+          event.sender.send("whisper-download-progress", progressData);
+        });
 
         // Send completion event
         event.sender.send("whisper-download-progress", {
@@ -250,7 +196,6 @@ class IPCHandlers {
 
         return result;
       } catch (error) {
-
         // Send error event
         event.sender.send("whisper-download-progress", {
           type: "error",
@@ -272,6 +217,10 @@ class IPCHandlers {
 
     ipcMain.handle("delete-whisper-model", async (event, modelName) => {
       return this.whisperManager.deleteWhisperModel(modelName);
+    });
+
+    ipcMain.handle("delete-all-whisper-models", async () => {
+      return this.whisperManager.deleteAllWhisperModels();
     });
 
     ipcMain.handle("cancel-whisper-download", async (event) => {
@@ -317,13 +266,13 @@ class IPCHandlers {
     // Model management handlers
     ipcMain.handle("model-get-all", async () => {
       try {
-        console.log('[IPC] model-get-all called');
+        debugLogger.debug("model-get-all called", undefined, "ipc");
         const modelManager = require("./modelManagerBridge").default;
         const models = await modelManager.getModelsWithStatus();
-        console.log('[IPC] Returning models:', models.length);
+        debugLogger.debug("Returning models", { count: models.length }, "ipc");
         return models;
       } catch (error) {
-        console.error('[IPC] Error in model-get-all:', error);
+        debugLogger.error("Error in model-get-all:", error);
         throw error;
       }
     });
@@ -349,11 +298,11 @@ class IPCHandlers {
         );
         return { success: true, path: result };
       } catch (error) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details,
         };
       }
     });
@@ -364,11 +313,11 @@ class IPCHandlers {
         await modelManager.deleteModel(modelId);
         return { success: true };
       } catch (error) {
-        return { 
-          success: false, 
+        return {
+          success: false,
           error: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details,
         };
       }
     });
@@ -394,11 +343,11 @@ class IPCHandlers {
         await modelManager.ensureLlamaCpp();
         return { available: true };
       } catch (error) {
-        return { 
-          available: false, 
+        return {
+          available: false,
           error: error.message,
           code: error.code,
-          details: error.details 
+          details: error.details,
         };
       }
     });
@@ -413,6 +362,14 @@ class IPCHandlers {
 
     ipcMain.handle("save-gemini-key", async (event, key) => {
       return this.environmentManager.saveGeminiKey(key);
+    });
+
+    ipcMain.handle("get-groq-key", async (event) => {
+      return this.environmentManager.getGroqKey();
+    });
+
+    ipcMain.handle("save-groq-key", async (event, key) => {
+      return this.environmentManager.saveGroqKey(key);
     });
 
     ipcMain.handle("save-anthropic-key", async (event, key) => {
@@ -431,56 +388,68 @@ class IPCHandlers {
     });
 
     // Anthropic reasoning handler
-    ipcMain.handle("process-anthropic-reasoning", async (event, text, modelId, agentName, config) => {
-      try {
-        const apiKey = this.environmentManager.getAnthropicKey();
-        
-        if (!apiKey) {
-          throw new Error("Anthropic API key not configured");
-        }
+    ipcMain.handle(
+      "process-anthropic-reasoning",
+      async (event, text, modelId, agentName, config) => {
+        try {
+          const apiKey = this.environmentManager.getAnthropicKey();
 
-        const systemPrompt = "You are a dictation assistant. Clean up text by fixing grammar and punctuation. Output ONLY the cleaned text without any explanations, options, or commentary.";
-        const userPrompt = agentName && text.toLowerCase().includes(agentName.toLowerCase())
-          ? `You are ${agentName}, a helpful AI assistant. Clean up the following dictated text by fixing grammar, punctuation, and formatting. Remove any reference to your name. Output ONLY the cleaned text without explanations or options:\n\n${text}`
-          : `Clean up the following dictated text by fixing grammar, punctuation, and formatting. Output ONLY the cleaned text without any explanations, options, or commentary:\n\n${text}`;
-
-        const requestBody = {
-          model: modelId || "claude-3-5-sonnet-20241022",
-          messages: [{ role: "user", content: userPrompt }],
-          system: systemPrompt,
-          max_tokens: config?.maxTokens || Math.max(100, Math.min(text.length * 2, 4096)),
-          temperature: config?.temperature || 0.3,
-        };
-
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-API-Key": apiKey,
-            "anthropic-version": "2023-06-01",
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          let errorData = { error: response.statusText };
-          try {
-            errorData = JSON.parse(errorText);
-          } catch {
-            errorData = { error: errorText || response.statusText };
+          if (!apiKey) {
+            throw new Error("Anthropic API key not configured");
           }
-          throw new Error(errorData.error?.message || errorData.error || `Anthropic API error: ${response.status}`);
+
+          const systemPrompt =
+            "You are a dictation assistant. Clean up text by fixing grammar and punctuation. Output ONLY the cleaned text without any explanations, options, or commentary.";
+          const userPrompt =
+            agentName && text.toLowerCase().includes(agentName.toLowerCase())
+              ? `You are ${agentName}, a helpful AI assistant. Clean up the following dictated text by fixing grammar, punctuation, and formatting. Remove any reference to your name. Output ONLY the cleaned text without explanations or options:\n\n${text}`
+              : `Clean up the following dictated text by fixing grammar, punctuation, and formatting. Output ONLY the cleaned text without any explanations, options, or commentary:\n\n${text}`;
+
+          if (!modelId) {
+            throw new Error("No model specified for Anthropic API call");
+          }
+
+          const requestBody = {
+            model: modelId,
+            messages: [{ role: "user", content: userPrompt }],
+            system: systemPrompt,
+            max_tokens: config?.maxTokens || Math.max(100, Math.min(text.length * 2, 4096)),
+            temperature: config?.temperature || 0.3,
+          };
+
+          const response = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-API-Key": apiKey,
+              "anthropic-version": "2023-06-01",
+            },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            let errorData = { error: response.statusText };
+            try {
+              errorData = JSON.parse(errorText);
+            } catch {
+              errorData = { error: errorText || response.statusText };
+            }
+            throw new Error(
+              errorData.error?.message ||
+                errorData.error ||
+                `Anthropic API error: ${response.status}`
+            );
+          }
+
+          const data = await response.json();
+          return { success: true, text: data.content[0].text.trim() };
+        } catch (error) {
+          debugLogger.error("Anthropic reasoning error:", error);
+          return { success: false, error: error.message };
         }
-
-        const data = await response.json();
-        return { success: true, text: data.content[0].text.trim() };
-      } catch (error) {
-        debugLogger.error("Anthropic reasoning error:", error);
-        return { success: false, error: error.message };
       }
-    });
-
+    );
 
     // Check if local reasoning is available
     ipcMain.handle("check-local-reasoning-available", async () => {
@@ -516,6 +485,7 @@ class IPCHandlers {
 
     ipcMain.handle("llama-cpp-uninstall", async () => {
       try {
+        const llamaCppInstaller = require("./llamaCppInstaller").default;
         const result = await llamaCppInstaller.uninstall();
         return result;
       } catch (error) {

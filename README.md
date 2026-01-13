@@ -63,12 +63,13 @@ systemctl --user enable --now ydotool.service
 
 - 🐧 **Wayland Optimized**: Specialized scripts and systemd services for modern Linux desktops
 - 🎤 **Global Hotkey**: Toggle dictation via custom desktop shortcuts (Wayland) or native global hotkeys (X11/macOS/Windows)
-- 🤖 **Multi-Provider AI Processing**: Choose between OpenAI, Anthropic Claude, Google Gemini, or local models
+- 🤖 **Multi-Provider AI Processing**: Choose between OpenAI, Anthropic Claude, Google Gemini, Groq, or local models
 - 🎯 **Agent Naming**: Personalize your AI assistant with a custom name for natural interactions
-- 🧠 **Latest AI Models** (January 2026):
+- 🧠 **Latest AI Models**:
   - **OpenAI**: GPT-5 Series, GPT-4.1 Series, o-series reasoning models (o3/o4-mini)
-  - **Anthropic**: Claude Opus 4.1, Claude Sonnet 4, Claude 3.5 Sonnet/Haiku
-  - **Google**: Gemini 2.5 Pro/Flash/Flash-Lite with thinking capability, Gemini 2.0 Flash
+  - **Anthropic**: Claude Opus 4.5, Claude Sonnet 4.5, Claude 3.5 Sonnet/Haiku
+  - **Google**: Gemini 2.5 Pro/Flash/Flash-Lite
+  - **Groq**: Ultra-fast inference with Llama and Mixtral models
   - **Local**: Qwen, LLaMA, Mistral models via llama.cpp
 - 🔒 **Privacy-First**: Local processing keeps your voice data completely private
 - 🎨 **Modern UI**: Built with React 19, TypeScript, and Tailwind CSS v4
@@ -80,14 +81,15 @@ systemctl --user enable --now ydotool.service
 - ⚡ **Automatic Pasting**: Transcribed text automatically pastes at your cursor location (via `ydotool` on Wayland, native on other platforms)
 - 🖱️ **Draggable Interface**: Move the dictation panel anywhere on your screen
 - 🔄 **OpenAI Responses API**: Using the latest Responses API for improved performance
-- ⌨️ **macOS Globe/Fn Key**: Native support for Globe/Fn key shortcuts on Mac
+- ⌨️ **Compound Hotkeys**: Support for multi-key combinations like `Cmd+Shift+K`
+- 🌐 **Globe Key Toggle (macOS)**: Optional Fn/Globe key listener for a hardware-level dictation trigger
 
 ## Prerequisites
 
-- **Linux** (Wayland or X11) - Primary target platform
 - **Node.js 18+** (for building from source)
-- **ydotool** (Required for Wayland auto-paste - see setup above)
-- **Python 3.7+** (Optional - the app can install it automatically for local Whisper processing)
+- **Linux** (Wayland or X11), **macOS 10.15+**, or **Windows 10+**
+- **ydotool** (Required for Linux Wayland auto-paste)
+- On macOS, Globe key support requires Xcode Command Line Tools (`xcode-select --install`)
 
 **Platform Support:**
 - ✅ **Linux (Wayland)**: Fully optimized with ydotool and systemd integration
@@ -172,44 +174,6 @@ npm run build:linux
 # - OpenWayl-x.x.x-linux-x64.tar.gz
 ```
 
-**Optional: Building Flatpak** (requires additional setup):
-
-```bash
-# Install Flatpak build tools
-sudo apt install flatpak flatpak-builder  # Debian/Ubuntu
-# OR
-sudo dnf install flatpak flatpak-builder  # Fedora/RHEL
-
-# Add Flathub repository and install runtime
-flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install --user -y flathub org.freedesktop.Platform//24.08 org.freedesktop.Sdk//24.08
-
-# Add "flatpak" to linux.target in electron-builder.json, then build
-npm run build:linux
-```
-
-**Installation Examples**:
-
-```bash
-# Debian/Ubuntu
-sudo apt install ./dist/OpenWayl-*-linux-x64.deb
-
-# Fedora/RHEL
-sudo dnf install ./dist/OpenWayl-*-linux-x64.rpm
-
-# Universal tar.gz (no root required)
-tar -xzf dist/OpenWayl-*-linux-x64.tar.gz
-cd OpenWayl-*/
-./open-wayl
-
-# Flatpak
-flatpak install --user ./dist/OpenWayl-*-linux-x64.flatpak
-
-# AppImage (existing method)
-chmod +x dist/OpenWayl-*.AppImage
-./dist/OpenWayl-*.AppImage
-```
-
 **Optional Dependencies for Automatic Paste**:
 
 The clipboard paste feature requires `ydotool` on Wayland.
@@ -223,29 +187,6 @@ sudo pacman -S ydotool
 ```
 
 > ℹ️ **Note**: See [WAYLAND_SETUP.md](WAYLAND_SETUP.md) for configuring the ydotool service, which is required for auto-paste to work.
-
-# Fedora/RHEL
-sudo dnf install wtype
-
-# Arch
-sudo pacman -S wtype
-
-# Alternative: ydotool (requires uinput permissions)
-sudo apt install ydotool  # or equivalent for your distro
-
-# On KDE Wayland you will additionally need `kdotool` to detect if a terminal is focused for automatically pasting with Ctrl+Shift+V instead of Ctrl+V. Automatic terminal detection on non-KDE Wayland is not yet supported.
-sudo apt install kdotool # or equivalent for your distro
-```
-
-> ℹ️ **Note**: OpenWhispr automatically detects your display server (X11 vs Wayland) and uses the appropriate paste tool. If no paste tool is installed, text will still be copied to the clipboard - you'll just need to paste manually with Ctrl+V.
-
-> 🔒 **Flatpak Security**: The Flatpak package includes sandboxing with explicit permissions for microphone, clipboard, and file access. See [electron-builder.json](electron-builder.json) for the complete permission list.
-
-### Building for Distribution
-
-```bash
-npm run build:linux  # Linux
-```
 
 ### First Time Setup
 
@@ -281,47 +222,6 @@ npm run build:linux  # Linux
 
 **Note**: On Wayland, the hotkey is handled by your desktop environment (GNOME, KDE, etc.), not by the app itself.
 
-### Control Panel
-- **Access**: Right-click the system tray icon or use keyboard shortcuts
-  - **macOS**: Click tray icon to show menu
-  - **Linux/Windows**: Click or right-click tray icon
-- **Configure**: Choose between local and cloud processing
-- **History**: View, copy, and delete past transcriptions
-- **Models**: Download and manage local Whisper models
-- **Storage Cleanup**: Remove downloaded Whisper models from cache to reclaim space
-- **Settings**: Configure API keys, customize hotkeys, and manage permissions
-
-### Uninstall & Cache Cleanup
-- **In-App**: Use *Settings → Speech to Text Processing → Local Model Storage → Remove Downloaded Models* to clear `~/.cache/openwhispr/models` (or `%USERPROFILE%\.cache\openwhispr\models` on Windows).
-- **Windows Uninstall**: The NSIS uninstaller automatically deletes the same cache directory.
-- **Linux Packages**: `deb`/`rpm` post-uninstall scripts also remove cached models.
-- **macOS**: If you uninstall manually, remove `~/Library/Caches` or `~/.cache/openwhispr/models` if desired.
-
-### Agent Naming & AI Processing
-Once you've named your agent during setup, you can interact with it using multiple AI providers:
-
-**🎯 Agent Commands** (for AI assistance):
-- "Hey [AgentName], make this more professional"
-- "Hey [AgentName], format this as a list"
-- "Hey [AgentName], write a thank you email"
-- "Hey [AgentName], convert this to bullet points"
-
-**🤖 AI Provider Options**:
-- **OpenAI**: 
-  - GPT-5 Series (Nano/Mini/Full) - Latest generation with deep reasoning
-  - GPT-4.1 Series - Enhanced coding with 1M token context
-  - o3/o4 Series - Advanced reasoning models with longer thinking
-- **Anthropic**: Claude Opus 4.1, Sonnet 4 - Frontier intelligence models
-- **Google**: Gemini 2.5 Pro/Flash - Advanced multi-modal capabilities
-- **Local**: Community models for complete privacy
-
-**📝 Regular Dictation** (for normal text):
-- "This is just normal text I want transcribed"
-- "Meeting notes: John mentioned the quarterly report"
-- "Dear Sarah, thank you for your help"
-
-The AI automatically detects when you're giving it commands versus dictating regular text, and removes agent name references from the final output.
-
 ### Processing Options
 - **Local Processing**:
   - Install Whisper automatically through the Control Panel
@@ -340,8 +240,6 @@ The AI automatically detects when you're giving it commands versus dictating reg
 open-wayl/
 ├── main.js                    # Electron main process entry point
 ├── preload.js                 # Electron preload script & IPC API bridge
-├── whisper_bridge.py          # Python script for local Whisper processing
-├── setup.js                   # First-time setup wizard
 ├── package.json               # Dependencies and npm scripts
 ├── env.example                # Environment variables template
 ├── CHANGELOG.md               # Project changelog
@@ -366,102 +264,21 @@ open-wayl/
     │   ├── ControlPanel.tsx   # Settings and history UI
     │   ├── OnboardingFlow.tsx # First-time setup wizard
     │   ├── SettingsPage.tsx   # Full settings interface
-    │   ├── SettingsModal.tsx  # Settings dialog wrapper
-    │   ├── WhisperModelPicker.tsx  # Model selection and download
-    │   ├── UnifiedModelPicker.tsx  # Unified model selector
-    │   ├── AIModelSelectorEnhanced.tsx  # AI model selector with providers
-    │   ├── TitleBar.tsx       # Window title bar
-    │   ├── WindowControls.tsx # Window control buttons
-    │   ├── ui/                # shadcn/ui components (25+ components)
-    │   │   ├── alert.tsx
-    │   │   ├── ApiKeyInput.tsx
-    │   │   ├── badge.tsx
-    │   │   ├── button.tsx
-    │   │   ├── card.tsx
-    │   │   ├── dialog.tsx
-    │   │   ├── DotFlashing.tsx
-    │   │   ├── dropdown-menu.tsx
-    │   │   ├── input.tsx
-    │   │   ├── Keyboard.tsx
-    │   │   ├── label.tsx
-    │   │   ├── LanguageSelector.tsx
-    │   │   ├── LoadingDots.tsx
-    │   │   ├── PermissionCard.tsx
-    │   │   ├── ProcessingModeSelector.tsx
-    │   │   ├── progress.tsx
-    │   │   ├── PromptStudio.tsx
-    │   │   ├── select.tsx
-    │   │   ├── SettingsSection.tsx
-    │   │   ├── SidebarModal.tsx
-    │   │   ├── StepProgress.tsx
-    │   │   ├── SupportDropdown.tsx
-    │   │   ├── tabs.tsx
-    │   │   ├── textarea.tsx
-    │   │   ├── Toast.tsx
-    │   │   ├── toggle.tsx
-    │   │   ├── tooltip.tsx
-    │   │   └── TranscriptionItem.tsx
-    │   └── lib/
-    │       └── utils.ts        # Utility functions
+    │   ├── ui/                # shadcn/ui components
+    │   └── ...
     ├── config/                # Configuration files
-    │   ├── aiProvidersConfig.ts    # AI provider configuration
-    │   ├── constants.ts             # Application constants
-    │   └── InferenceConfig.ts       # Inference service config
     ├── helpers/               # Main process helper modules
     │   ├── audioManager.js    # Audio device management
     │   ├── clipboard.js       # Cross-platform clipboard operations
-    │   ├── database.js        # SQLite database operations
-    │   ├── debugLogger.js     # Debug logging system
-    │   ├── devServerManager.js  # Vite dev server integration
-    │   ├── dragManager.js     # Window dragging functionality
-    │   ├── environment.js     # Environment variable management
-    │   ├── globeKeyManager.js # macOS Globe/Fn key handling
-    │   ├── hotkeyManager.js   # Global hotkey registration
-    │   ├── ipcHandlers.js     # Centralized IPC handlers
-    │   ├── menuManager.js     # Application menu management
-    │   ├── ModelManager.ts    # Model download and management
-    │   ├── modelManagerBridge.js  # Model manager bridge
-    │   ├── pythonInstaller.js     # Python auto-installation
-    │   ├── tray.js            # System tray icon and menu
-    │   ├── whisper.js         # Whisper Python bridge
-    │   ├── windowConfig.js    # Window configuration
-    │   └── windowManager.js    # Window creation and lifecycle
+    │   ├── whisper.js         # Whisper integration (whisper.cpp)
+    │   ├── windowManager.js   # Window creation and lifecycle
+    │   └── ...
     ├── hooks/                 # React hooks
-    │   ├── useAudioRecording.js   # MediaRecorder API wrapper
-    │   ├── useClipboard.ts         # Clipboard operations
-    │   ├── useDialogs.ts           # Electron dialogs
-    │   ├── useHotkey.js            # Hotkey state management
-    │   ├── useLocalStorage.ts      # Type-safe localStorage
-    │   ├── useLocalModels.ts       # Local model management
-    │   ├── usePermissions.ts       # Permission checks
-    │   ├── usePython.ts            # Python installation state
-    │   ├── useSettings.ts          # Application settings
-    │   ├── useWhisper.ts           # Whisper model management
-    │   └── useWindowDrag.js        # Window dragging logic
     ├── models/                # Data models
-    │   ├── ModelRegistry.ts        # Model registry interface
-    │   └── modelRegistryData.json  # Model data cache
     ├── services/              # Service layer
     │   ├── ReasoningService.ts     # AI processing service
-    │   ├── BaseReasoningService.ts  # Base AI service class
-    │   ├── LocalReasoningService.ts # Local AI processing
-    │   └── localReasoningBridge.js # Local AI bridge
-    ├── stores/                # State management
-    │   └── transcriptionStore.ts   # Transcription history store
-    ├── types/                 # TypeScript definitions
-    │   └── electron.ts            # Electron type definitions
-    ├── utils/                 # Utility modules
-    │   ├── agentName.ts           # Agent name management
-    │   ├── debugLoggerRenderer.js # Renderer debug logging
-    │   ├── formatBytes.ts         # File size formatting
-    │   ├── hotkeys.ts             # Hotkey utilities
-    │   ├── languages.ts           # Language definitions (58 langs)
-    │   ├── process.js             # Process utilities
-    │   ├── retry.ts               # Retry logic with backoff
-    │   └── SecureCache.ts         # Secure caching for API keys
-    ├── components.json        # shadcn/ui configuration
-    ├── eslint.config.js       # ESLint configuration
-    └── updater.js             # Auto-update manager
+    │   └── ...
+    └── ...
 ```
 
 ## Technology Stack
@@ -471,230 +288,43 @@ open-wayl/
 - **Desktop**: Electron 36 with context isolation
 - **UI Components**: shadcn/ui with Radix primitives
 - **Database**: better-sqlite3 for local transcription storage
-- **Speech-to-Text**: OpenAI Whisper (local models + API)
-- **Local Processing**: Python with OpenAI Whisper package
+- **Speech-to-Text**: OpenAI Whisper (powered by whisper.cpp for local, OpenAI API for cloud)
 - **Icons**: Lucide React for consistent iconography
 - **Wayland Integration**: ydotool, systemd, desktop shortcuts (Linux)
 - **macOS Integration**: Swift (Globe/Fn key), AppleScript (clipboard)
 
-## Development
-
-### Scripts
-
-- `npm run dev` - Start development with hot reload
-- `npm run start` - Start production build
-- `npm run setup` - First-time setup (creates .env file)
-- `npm run build:renderer` - Build the React app only
-- `npm run build` - Full build with signing (requires certificates)
-- `npm run build:mac` - macOS build with signing
-- `npm run build:win` - Windows build with signing
-- `npm run build:linux` - Linux build
-- `npm run pack` - Build without signing (for personal use)
-- `npm run dist` - Build and package with signing
-- `npm run lint` - Run ESLint
-- `npm run preview` - Preview production build
-- `npm run clean` - Clean build artifacts and temporary files
-
-### Architecture
-
-The app consists of two main windows:
-1. **Main Window**: Minimal overlay for dictation controls
-2. **Control Panel**: Full settings and history interface
-
-Both use the same React codebase but render different components based on URL parameters.
-
-### Key Components
-
-- **main.js**: Electron main process, IPC handlers, database operations
-- **preload.js**: Secure bridge between main and renderer processes
-- **App.jsx**: Main dictation interface with recording controls
-- **ControlPanel.tsx**: Settings, history, and model management
-- **whisper_bridge.py**: Python bridge for local Whisper processing
-- **better-sqlite3**: Local database for transcription history
-
-### Tailwind CSS v4 Setup
-
-This project uses the latest Tailwind CSS v4 with:
-- CSS-first configuration using `@theme` directive
-- Vite plugin for optimal performance
-- Custom design tokens for consistent theming
-- Dark mode support with `@variant`
-
-## Building
-
-The build process creates a single executable for your platform:
-
-```bash
-# Development build
-npm run pack
-
-# Production builds
-npm run dist           # Current platform
-npm run build:mac      # macOS DMG + ZIP
-npm run build:win      # Windows NSIS + Portable
-npm run build:linux    # AppImage + DEB
-```
-
 ## Configuration
-
-### Environment Variables
-
-Create a `.env` file in the root directory (or use `npm run setup`):
-
-```env
-# OpenAI API Configuration (optional - only needed for cloud processing)
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Optional: Customize the Whisper model
-WHISPER_MODEL=whisper-1
-
-# Optional: Set language for better transcription accuracy
-LANGUAGE=
-
-# Optional: Anthropic API Configuration
-ANTHROPIC_API_KEY=your_anthropic_api_key_here
-
-# Optional: Google Gemini API Configuration  
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# Optional: Debug mode
-DEBUG=false
-```
 
 ### Local Whisper Setup
 
-For local processing, OpenWayl offers automated setup:
+For local processing, OpenWayl uses OpenAI's Whisper model via **whisper.cpp** - a high-performance C++ implementation:
 
-1. **Automatic Python Installation** (if needed):
-   - The app will detect if Python is missing
-   - Offers to install Python 3.11 automatically
-   - macOS: Uses Homebrew if available, otherwise official installer
-   - Windows: Downloads and installs official Python
-   - Linux: Uses system package manager (apt, yum, or pacman)
+1. **Bundled Binary**: whisper.cpp is bundled with the app for all platforms
+2. **GGML Models**: Downloads optimized GGML models on first use to `~/.cache/openwhispr/whisper-models/`
+3. **No Dependencies**: No Python or other runtime required
 
-2. **Automatic Whisper Setup**:
-   - Installs OpenAI Whisper package via pip
-   - Downloads your chosen model on first use
-   - Handles all transcription locally
-
-**Requirements**:
-- Sufficient disk space for models (39MB - 1.5GB depending on model)
-- Admin/sudo access may be required for Python installation
-
-### Customization
-
-- **Hotkey**: Change in the Control Panel (default: backtick `) - fully customizable
-- **Panel Position**: Drag the dictation panel to any location on your screen
-- **Processing Method**: Choose local or cloud in Control Panel
-- **Whisper Model**: Select quality vs speed in Control Panel
-- **UI Theme**: Edit CSS variables in `src/index.css`
-- **Window Size**: Adjust dimensions in `main.js`
-- **Database**: Transcriptions stored in user data directory
-- **ydotool Socket**: Customize socket path in systemd service (Linux Wayland)
-
-## Contributing
-
-We welcome contributions! Please follow these steps:
-
-1. Fork the repository at [https://github.com/christian-taillon/open-wayl](https://github.com/christian-taillon/open-wayl)
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Development Guidelines
-
-- Run `npm run lint` before committing
-- Follow the existing code style
-- Update documentation as needed
-- Test on your target platform before submitting
-- For Wayland-specific features, test on GNOME, KDE, or Hyprland
-## Security
-
-OpenWayl is designed with privacy and security in mind:
-
-- **Local Processing Option**: Keep your voice data completely private
-- **No Analytics**: We don't collect any usage data or telemetry
-- **Open Source**: All code is available for review
-- **Secure Storage**: API keys are stored securely in your system's keychain/credential manager
-- **Minimal Permissions**: Only requests necessary permissions (microphone, accessibility)
-- **Wayland-Safe**: Uses standard Linux tools (ydotool, systemd) for input simulation without compromising security
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Microphone permissions**: Grant permissions in System Preferences/Settings
-2. **Accessibility permissions (macOS)**: Required for automatic text pasting
-    - Go to System Settings → Privacy & Security → Accessibility
-    - Add OpenWayl and enable the checkbox
-    - Use "Fix Permission Issues" in Control Panel if needed
-3. **API key errors** (cloud processing only): Ensure your OpenAI API key is valid and has credits
-   - Set key through Control Panel or .env file
-   - Check logs for "OpenAI API Key present: Yes/No"
-4. **Local Whisper installation**: 
-   - Ensure Python 3.7+ is installed
-   - Use Control Panel to install Whisper automatically
-   - Check available disk space for models
-5. **Global hotkey conflicts**: Change the hotkey in the Control Panel - any key can be used
-6. **Text not pasting**: Check accessibility permissions and try manual paste with Cmd+V
-7. **Panel position**: If the panel appears off-screen, restart the app to reset position
-
-### Getting Help
-
-- Check the [Issues](https://github.com/christian-taillon/open-wayl/issues) page
-- Review the console logs for debugging information
-- For local processing: Ensure Python and pip are working
-- For cloud processing: Verify your OpenAI API key and billing status
-- Check the Control Panel for system status and diagnostics
-- For Wayland issues: Review [WAYLAND_SETUP.md](WAYLAND_SETUP.md)
-
-### Performance Tips
-
-- **Local Processing**: Use "base" model for best balance of speed and accuracy
-- **Cloud Processing**: Generally faster but requires internet connection
-- **Model Selection**: tiny (fastest) → base (recommended) → small → medium → large (best quality)
-- **Permissions**: Ensure all required permissions are granted for smooth operation
-
-## FAQ
-
-**Q: Is OpenWayl really free?**
-A: Yes! OpenWayl is open source and free to use. You only pay for OpenAI API usage if you choose cloud processing.
-
-**Q: Which processing method should I use?**
-A: Use local processing for privacy and offline use. Use cloud processing for speed and convenience.
-
-**Q: Can I use this commercially?**
-A: Yes! The MIT license allows commercial use.
-
-**Q: How do I change the hotkey?**
-A: Open the Control Panel (right-click tray icon) and go to Settings. You can set any key as your hotkey.
-   - **On Wayland:** You also need to configure a desktop shortcut in GNOME/KDE settings
-   - **On macOS/Linux (X11):** The app registers global hotkeys directly
-
-**Q: Is my data secure?**
-A: With local processing, your audio never leaves your device. With cloud processing, audio is sent to OpenAI's servers (see their privacy policy).
-
-**Q: What languages are supported?**
-A: OpenWayl supports 58 languages including English, Spanish, French, German, Chinese, Japanese, and more. Set your preferred language in the .env file or use auto-detect.
-
-**Q: Why doesn't the global hotkey work on Wayland?**
-A: Wayland isolates applications from global keyboard events for security. You must set up a custom desktop shortcut in your DE (GNOME, KDE, etc.) - see the [Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md) for details.
-
-**Q: Can I use OpenWayl on macOS or Windows?**
-A: Yes! OpenWayl is based on OpenWhispr and supports macOS and Windows, but it's optimized for Linux Wayland environments. On those platforms, global hotkeys and pasting work natively without additional setup.
+**System Fallback**: If the bundled binary fails, install via package manager:
+- macOS: `brew install whisper-cpp`
+- Linux: Build from source at https://github.com/ggml-org/whisper.cpp
 
 ## Project Status
 
-OpenWayl is actively maintained and ready for production use. Current version: 1.0.14
+OpenWayl is actively maintained and ready for production use. Version: 1.2.2
 
 - ✅ Core functionality complete
 - ✅ Wayland-optimized with ydotool integration
 - ✅ Cross-platform support (Linux-first)
 - ✅ Local and cloud processing
-- ✅ Automatic Python/Whisper installation
+- ✅ Multi-provider AI support (OpenAI, Anthropic, Gemini, Groq)
 - ✅ Agent naming system
-- ✅ Draggable interface
-- ✅ Multi-provider AI support (OpenAI, Anthropic, Gemini)
 - ✅ macOS Globe/Fn key support
 - 🚧 Continuous improvements and bug fixes
+
+## Acknowledgments
+
+- **[OpenAI Whisper](https://github.com/openai/whisper)** - The speech recognition model that powers both local and cloud transcription
+- **[whisper.cpp](https://github.com/ggerganov/whisper.cpp)** - High-performance C++ implementation of Whisper for local processing
+- **[Electron](https://www.electronjs.org/)** - Cross-platform desktop application framework
+- **[React](https://react.dev/)** - UI component library
+- **[shadcn/ui](https://ui.shadcn.com/)** - Beautiful UI components built on Radix primitives
+- **[llama.cpp](https://github.com/ggerganov/llama.cpp)** - Local LLM inference for AI-powered text processing

@@ -1,0 +1,7 @@
+{
+  "uuid": "openwayl-indicator@openwayl",
+  "name": "OpenWayl Indicator",
+  "description": "Show OpenWayl recording and processing status in the GNOME Top Bar.",
+  "version": 1,
+  "shell-version": ["45", "46", "47"]
+}
