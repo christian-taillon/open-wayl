@@ -7,11 +7,11 @@
   "scripts": {
     "compile:globe": "node scripts/build-globe-listener.js",
     "prestart": "npm run compile:globe",
-    "start": "electron .",
+    "start": "electron . --ozone-platform=wayland --enable-features=WaylandWindowDecorations",
     "predev": "npm run compile:globe",
     "dev": "concurrently -k -r \"npm:dev:renderer\" \"npm:dev:main\"",
     "predev:main": "npm run compile:globe",
-    "dev:main": "cross-env NODE_ENV=development electron . --dev",
+    "dev:main": "cross-env NODE_ENV=development electron . --dev --ozone-platform=wayland --enable-features=WaylandWindowDecorations",
     "dev:renderer": "cd src && vite",
     "prebuild": "npm run compile:globe",
     "build": "cd src && vite build && cd .. && electron-builder",

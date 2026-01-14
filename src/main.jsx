@@ -18,6 +18,35 @@ function AppRouter() {
   const isDictationPanel = !isControlPanel;
 
   useEffect(() => {
+    const platform =
+      typeof window !== "undefined" && window.electronAPI?.getPlatform
+        ? window.electronAPI.getPlatform()
+        : "unknown";
+
+    if (platform !== "linux") {
+      return;
+    }
+
+    if (isControlPanel) {
+      document.documentElement.style.setProperty("--app-zoom", "1");
+      return;
+    }
+
+    const applyZoom = () => {
+      const scaleFactor = window.devicePixelRatio || 1;
+      const zoomFactor = scaleFactor > 0 ? 1 / scaleFactor : 1;
+      document.documentElement.style.setProperty("--app-zoom", String(zoomFactor));
+    };
+
+    applyZoom();
+    window.addEventListener("resize", applyZoom);
+
+    return () => {
+      window.removeEventListener("resize", applyZoom);
+    };
+  }, [isControlPanel]);
+
+  useEffect(() => {
     // Check if onboarding has been completed
     const onboardingCompleted = localStorage.getItem("onboardingCompleted") === "true";
     // Clamp step to valid range (0-5) for current 6-step onboarding

@@ -30,6 +30,20 @@ class ClipboardManager {
     }
   }
 
+  hasX11Access() {
+    if (!process.env.DISPLAY) {
+      return false;
+    }
+
+    const xauthority = process.env.XAUTHORITY || path.join(os.homedir(), ".Xauthority");
+
+    try {
+      return fs.existsSync(xauthority);
+    } catch {
+      return false;
+    }
+  }
+
   async pasteText(text) {
     try {
       // Save original clipboard content first
@@ -41,6 +55,9 @@ class ClipboardManager {
 
       // Copy text to clipboard first - this always works
       clipboard.writeText(text);
+      if (process.platform === "linux") {
+        clipboard.writeText(text, "selection");
+      }
       this.safeLog("📋 Text copied to clipboard:", text.substring(0, 50) + "...");
 
       if (process.platform === "darwin") {
@@ -60,7 +77,7 @@ class ClipboardManager {
       } else if (process.platform === "win32") {
         return await this.pasteWindows(originalClipboard);
       } else {
-        return await this.pasteLinux(originalClipboard);
+        return await this.pasteLinux(text, originalClipboard);
       }
     } catch (error) {
       throw error;
@@ -179,7 +196,10 @@ class ClipboardManager {
     });
   }
 
-  async pasteLinux(originalClipboard) {
+  async pasteLinux(text, originalClipboard) {
+    // Give the clipboard time to settle on Wayland
+    await new Promise((resolve) => setTimeout(resolve, PASTE_DELAY_MS));
+
     // Helper to check if a command exists
     const commandExists = (cmd) => {
       const now = Date.now();
@@ -215,6 +235,9 @@ class ClipboardManager {
         return true;
       }
 
+      // Check for X11 display availability before using X11 tools
+      const hasDisplay = this.hasX11Access();
+
       // Common terminal emulator class names
       const terminalClasses = [
         "konsole",
@@ -236,7 +259,7 @@ class ClipboardManager {
 
       try {
         // Try xdotool (works on X11 and XWayland)
-        if (commandExists("xdotool")) {
+        if (hasDisplay && commandExists("xdotool")) {
           // Get active window ID first
           const result = spawnSync("xdotool", ["getactivewindow"]);
 
@@ -247,16 +270,7 @@ class ClipboardManager {
               let className = "";
               let title = "";
 
-              // 1. Try xprop first (often more reliable for class)
-              if (commandExists("xprop")) {
-                const xpropRes = spawnSync("xprop", ["-id", windowId, "WM_CLASS"]);
-                if (xpropRes.status === 0) {
-                  className = xpropRes.stdout.toString().toLowerCase();
-                  // Output format: WM_CLASS(STRING) = "name", "Class"
-                }
-              }
-
-              // 2. Fallback to xdotool getwindowclassname (if command exists)
+              // 1. Fallback to xdotool getwindowclassname (if command exists)
               if (!className) {
                 const classRes = spawnSync("xdotool", ["getwindowclassname", windowId]);
                 if (classRes.status === 0) {
@@ -327,13 +341,78 @@ class ClipboardManager {
     // Check for GNOME, where wtype is typically not supported
     const isGnome = (process.env.XDG_CURRENT_DESKTOP || "").toUpperCase().includes("GNOME");
 
+    const setSystemClipboard = () => {
+      if (isWayland && commandExists("wl-copy")) {
+        spawnSync("wl-copy", ["--type", "text/plain"], {
+          input: text,
+          stdio: ["pipe", "ignore", "ignore"],
+        });
+        return true;
+      }
+      return false;
+    };
+
+    const typeWithYdotool = () =>
+      new Promise((resolve, reject) => {
+        const options = {};
+        const userSocket = path.join(os.homedir(), ".ydotool_socket");
+        if (!process.env.YDOTOOL_SOCKET && fs.existsSync(userSocket)) {
+          options.env = { ...process.env, YDOTOOL_SOCKET: userSocket };
+          this.safeLog(`Using custom ydotool socket: ${userSocket}`);
+        }
+
+        const proc = spawn(
+          "ydotool",
+          ["type", "--key-delay", "2", "--key-hold", "2", "--file", "-"],
+          options
+        );
+        const timeoutMs = Math.max(3000, text.length * 40);
+        let timedOut = false;
+        const timeoutId = setTimeout(() => {
+          timedOut = true;
+          killProcess(proc, "SIGKILL");
+        }, timeoutMs);
+
+        proc.on("close", (code) => {
+          if (timedOut) {
+            return reject(new Error("ydotool type timed out"));
+          }
+          clearTimeout(timeoutId);
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`ydotool type exited with code ${code}`));
+          }
+        });
+
+        proc.on("error", (error) => {
+          if (timedOut) return;
+          clearTimeout(timeoutId);
+          reject(error);
+        });
+
+        if (proc.stdin) {
+          proc.stdin.write(text);
+          proc.stdin.end();
+        }
+      });
+
+    setSystemClipboard();
+
+    if (
+      isWayland &&
+      commandExists("ydotool") &&
+      process.env.OPEN_WAYL_WAYLAND_PASTE !== "clipboard"
+    ) {
+      this.safeLog("⌨️ Wayland detected, typing with ydotool");
+      await typeWithYdotool();
+      return;
+    }
+
     const inTerminal = isTerminal();
-    const preferShiftPaste = isWayland && isGnome;
 
     // Allow manual override of keys via env var, otherwise default based on terminal detection
-    const pasteKeys =
-      process.env.OPEN_WAYL_PASTE_KEYS ||
-      (inTerminal || preferShiftPaste ? "ctrl+shift+v" : "ctrl+v");
+    const pasteKeys = process.env.OPEN_WAYL_PASTE_KEYS || (inTerminal ? "ctrl+shift+v" : "ctrl+v");
     const useShift = pasteKeys.toLowerCase().includes("shift");
 
     // Define paste tools in preference order based on display server
@@ -369,7 +448,13 @@ class ClipboardManager {
     }
 
     // Filter to only available tools (commandExists is already cached)
-    const available = candidates.filter((c) => commandExists(c.cmd));
+    // For xdotool, also check if DISPLAY is available to avoid "Authorization required" errors
+    const available = candidates.filter((c) => {
+      if (c.cmd === "xdotool" && !this.hasX11Access()) {
+        return false;
+      }
+      return commandExists(c.cmd);
+    });
 
     // Attempt paste with a specific tool
     const pasteWith = (tool) =>
@@ -652,8 +737,12 @@ Would you like to open System Settings now?`;
     const toolsToCheck = isWayland
       ? ["wtype", "ydotool", "xdotool"] // xdotool as fallback for XWayland
       : ["xdotool"];
+    const hasX11Access = this.hasX11Access();
 
     for (const tool of toolsToCheck) {
+      if (tool === "xdotool" && !hasX11Access) {
+        continue;
+      }
       if (commandExists(tool)) {
         tools.push(tool);
       }

@@ -15,35 +15,9 @@ class WindowManager {
     this.isQuitting = false;
     this.isMainWindowInteractive = false;
     this.loadErrorShown = false;
-    this.gnomeTopBarMode = false;
-    this.gnomeExtensionActive = false;
-    this.gnomeAwaitingExtension = false;
-    this.gnomeFallbackTimer = null;
 
     app.on("before-quit", () => {
       this.isQuitting = true;
-    });
-  }
-
-  attachRendererLogging(window, label) {
-    if (process.env.NODE_ENV !== "development" || !window?.webContents) {
-      return;
-    }
-
-    window.webContents.on("console-message", (event) => {
-      const { level, message, lineNumber, sourceId } = event;
-      const prefix = `[Renderer:${label}]`;
-      const location = sourceId ? ` ${sourceId}:${lineNumber}` : "";
-      if (message) {
-        console.log(`${prefix} ${message}${location}`);
-      }
-      if (level === 3 && message) {
-        console.error(`${prefix} ${message}${location}`);
-      }
-    });
-
-    window.webContents.on("render-process-gone", (_event, details) => {
-      console.error(`[Renderer:${label}] process gone:`, details);
     });
   }
 
@@ -60,8 +34,6 @@ class WindowManager {
       ...MAIN_WINDOW_CONFIG,
       ...position,
     });
-
-    this.attachRendererLogging(this.mainWindow, "main");
 
     console.log("[WindowManager] Main window created, id:", this.mainWindow.id);
 
@@ -105,10 +77,6 @@ class WindowManager {
     this.mainWindow.webContents.on("did-finish-load", () => {
       this.mainWindow.setTitle("Voice Recorder");
       this.enforceMainWindowOnTop();
-    });
-
-    this.mainWindow.webContents.on("crashed", (event, killed) => {
-      console.error("Renderer process crashed!", killed ? "Killed" : "Crashed");
     });
   }
 
@@ -183,8 +151,6 @@ class WindowManager {
     }
 
     this.controlPanelWindow = new BrowserWindow(CONTROL_PANEL_CONFIG);
-
-    this.attachRendererLogging(this.controlPanelWindow, "control-panel");
 
     const visibilityTimer = setTimeout(() => {
       if (!this.controlPanelWindow || this.controlPanelWindow.isDestroyed()) {
@@ -275,10 +241,6 @@ class WindowManager {
 
   showDictationPanel(options = {}) {
     const { focus = false } = options;
-    if (!this.shouldShowMainWindow()) {
-      return;
-    }
-
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       if (!this.mainWindow.isVisible()) {
         if (typeof this.mainWindow.showInactive === "function") {
@@ -315,60 +277,6 @@ class WindowManager {
     }
   }
 
-  setGnomeTopBarMode(enabled) {
-    this.gnomeTopBarMode = Boolean(enabled);
-    this.clearGnomeFallbackTimer();
-
-    if (this.gnomeTopBarMode && !this.gnomeExtensionActive) {
-      this.gnomeAwaitingExtension = true;
-      this.gnomeFallbackTimer = setTimeout(() => {
-        this.gnomeAwaitingExtension = false;
-        if (this.gnomeTopBarMode && !this.gnomeExtensionActive) {
-          this.showDictationPanel({ focus: false });
-        }
-      }, 1500);
-    } else {
-      this.gnomeAwaitingExtension = false;
-    }
-
-    if (this.shouldShowMainWindow()) {
-      this.showDictationPanel({ focus: false });
-    } else {
-      this.hideDictationPanel();
-    }
-  }
-
-  setGnomeExtensionActive(active) {
-    this.gnomeExtensionActive = Boolean(active);
-
-    if (this.gnomeExtensionActive) {
-      this.gnomeAwaitingExtension = false;
-      this.clearGnomeFallbackTimer();
-      this.hideDictationPanel();
-      return;
-    }
-
-    if (this.gnomeTopBarMode) {
-      this.gnomeAwaitingExtension = false;
-      this.showDictationPanel({ focus: false });
-    }
-  }
-
-  clearGnomeFallbackTimer() {
-    if (this.gnomeFallbackTimer) {
-      clearTimeout(this.gnomeFallbackTimer);
-      this.gnomeFallbackTimer = null;
-    }
-  }
-
-  shouldShowMainWindow() {
-    if (!this.gnomeTopBarMode) {
-      return true;
-    }
-
-    return !this.gnomeExtensionActive && !this.gnomeAwaitingExtension;
-  }
-
   isDictationPanelVisible() {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) {
       return false;
@@ -388,7 +296,7 @@ class WindowManager {
 
     this.mainWindow.once("ready-to-show", () => {
       this.enforceMainWindowOnTop();
-      if (this.shouldShowMainWindow() && !this.mainWindow.isVisible()) {
+      if (!this.mainWindow.isVisible()) {
         if (typeof this.mainWindow.showInactive === "function") {
           this.mainWindow.showInactive();
         } else {
@@ -407,7 +315,6 @@ class WindowManager {
 
     this.mainWindow.on("closed", () => {
       this.dragManager.cleanup();
-      this.clearGnomeFallbackTimer();
       this.mainWindow = null;
       this.isMainWindowInteractive = false;
     });
@@ -416,6 +323,36 @@ class WindowManager {
   enforceMainWindowOnTop() {
     if (this.mainWindow && !this.mainWindow.isDestroyed()) {
       WindowPositionUtil.setupAlwaysOnTop(this.mainWindow);
+    }
+  }
+
+  isWaylandSession() {
+    return (
+      process.platform === "linux" &&
+      ((process.env.XDG_SESSION_TYPE || "").toLowerCase() === "wayland" ||
+        Boolean(process.env.WAYLAND_DISPLAY))
+    );
+  }
+
+  updateAnimationWindowState({ isRecording, isProcessing } = {}) {
+    if (!this.isWaylandSession()) {
+      return;
+    }
+
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    const shouldFloat = Boolean(isRecording || isProcessing);
+    if (!shouldFloat) {
+      return;
+    }
+
+    WindowPositionUtil.setupAlwaysOnTop(this.mainWindow);
+    this.mainWindow.setVisibleOnAllWorkspaces(true);
+
+    if (this.mainWindow.isVisible()) {
+      this.mainWindow.moveTop();
     }
   }
 

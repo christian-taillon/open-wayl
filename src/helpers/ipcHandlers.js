@@ -96,6 +96,7 @@ class IPCHandlers {
 
     ipcMain.handle("gnome-set-animation-state", (event, state = {}) => {
       this.gnomeIndicatorBridge?.setState?.(state);
+      this.windowManager?.updateAnimationWindowState?.(state);
       return { success: true };
     });
 

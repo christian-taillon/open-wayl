@@ -1,8 +1,8 @@
 const { app, globalShortcut, BrowserWindow, dialog } = require("electron");
 
 // Force GTK 3 to avoid GTK 2/3 vs GTK 4 conflict in Electron 36+ on Linux
-if (process.platform === 'linux') {
-  app.commandLine.appendSwitch('gtk-version', '3');
+if (process.platform === "linux") {
+  app.commandLine.appendSwitch("gtk-version", "3");
 }
 
 // Ensure macOS menus use the proper casing for the app name
@@ -37,25 +37,26 @@ const IPCHandlers = require("./src/helpers/ipcHandlers");
 const UpdateManager = require("./src/updater");
 const GlobeKeyManager = require("./src/helpers/globeKeyManager");
 const SettingsStore = require("./src/helpers/settingsStore");
-const GnomeIndicatorBridge = require("./src/helpers/gnomeIndicatorBridge");
+// const GnomeIndicatorBridge = require("./src/helpers/gnomeIndicatorBridge");
+const GnomeIndicatorBridge = null;
 
 // Set up PATH for production builds to find system tools (whisper.cpp, ffmpeg)
 function setupProductionPath() {
-  if (process.platform === 'darwin' && process.env.NODE_ENV !== 'development') {
+  if (process.platform === "darwin" && process.env.NODE_ENV !== "development") {
     const commonPaths = [
-      '/usr/local/bin',
-      '/opt/homebrew/bin',
-      '/usr/bin',
-      '/bin',
-      '/usr/sbin',
-      '/sbin'
+      "/usr/local/bin",
+      "/opt/homebrew/bin",
+      "/usr/bin",
+      "/bin",
+      "/usr/sbin",
+      "/sbin",
     ];
 
-    const currentPath = process.env.PATH || '';
-    const pathsToAdd = commonPaths.filter(p => !currentPath.includes(p));
+    const currentPath = process.env.PATH || "";
+    const pathsToAdd = commonPaths.filter((p) => !currentPath.includes(p));
 
     if (pathsToAdd.length > 0) {
-      process.env.PATH = `${currentPath}:${pathsToAdd.join(':')}`;
+      process.env.PATH = `${currentPath}:${pathsToAdd.join(":")}`;
     }
   }
 }
@@ -75,7 +76,8 @@ const trayManager = new TrayManager();
 const updateManager = new UpdateManager();
 const globeKeyManager = new GlobeKeyManager();
 const settingsStore = new SettingsStore();
-const gnomeIndicatorBridge = new GnomeIndicatorBridge({ windowManager });
+// const gnomeIndicatorBridge = new GnomeIndicatorBridge({ windowManager });
+const gnomeIndicatorBridge = null;
 let globeKeyAlertShown = false;
 
 if (process.platform === "darwin") {
@@ -91,7 +93,9 @@ if (process.platform === "darwin") {
     ];
 
     if (process.env.NODE_ENV === "development") {
-      detailLines.push("Run `npm run compile:globe` and rebuild the app to regenerate the listener binary.");
+      detailLines.push(
+        "Run `npm run compile:globe` and rebuild the app to regenerate the listener binary."
+      );
     } else {
       detailLines.push("Try reinstalling OpenWhispr or contact support if the issue persists.");
     }
@@ -122,9 +126,9 @@ const hasLock = app.requestSingleInstanceLock();
 if (!hasLock) {
   app.quit();
 } else {
-  app.on('second-instance', (event, commandLine, workingDirectory) => {
+  app.on("second-instance", (event, commandLine, workingDirectory) => {
     // Check for toggle command
-    if (commandLine.includes('--toggle')) {
+    if (commandLine.includes("--toggle")) {
       if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
         windowManager.showDictationPanel();
         windowManager.mainWindow.webContents.send("toggle-dictation");
@@ -134,7 +138,8 @@ if (!hasLock) {
 
     // Otherwise focus the control panel
     if (windowManager.controlPanelWindow) {
-      if (windowManager.controlPanelWindow.isMinimized()) windowManager.controlPanelWindow.restore();
+      if (windowManager.controlPanelWindow.isMinimized())
+        windowManager.controlPanelWindow.restore();
       windowManager.controlPanelWindow.focus();
     } else {
       windowManager.createControlPanelWindow();
@@ -150,10 +155,10 @@ async function startApp() {
   }
 
   // Ensure dock is visible on macOS and stays visible
-  if (process.platform === 'darwin' && app.dock) {
+  if (process.platform === "darwin" && app.dock) {
     app.dock.show();
     // Prevent dock from hiding when windows use setVisibleOnAllWorkspaces
-    app.setActivationPolicy('regular');
+    app.setActivationPolicy("regular");
   }
 
   // Initialize Whisper manager at startup (don't await to avoid blocking)
@@ -162,9 +167,28 @@ async function startApp() {
   });
 
   const gnomeTopBarMode = settingsStore.get("gnomeTopBarMode", false);
-  windowManager.setGnomeTopBarMode(gnomeTopBarMode);
-  await gnomeIndicatorBridge.start();
-  gnomeIndicatorBridge.setEnabled(gnomeTopBarMode);
+  const desktopSession = [
+    process.env.XDG_CURRENT_DESKTOP,
+    process.env.XDG_SESSION_DESKTOP,
+    process.env.DESKTOP_SESSION,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  const isGnomeSession = desktopSession.includes("gnome");
+  // Force disable GNOME bridge to avoid DBus errors
+  const enableGnomeBridge = false; // gnomeTopBarMode && isGnomeSession;
+
+  if (typeof windowManager.setGnomeTopBarMode === "function") {
+    windowManager.setGnomeTopBarMode(enableGnomeBridge);
+  }
+  // Disable bridge startup
+  // if (enableGnomeBridge) {
+  //   await gnomeIndicatorBridge.start();
+  //   gnomeIndicatorBridge.setEnabled(true);
+  // } else {
+  //   gnomeIndicatorBridge.setEnabled(false);
+  // }
 
   // Create main window
   try {
@@ -181,39 +205,25 @@ async function startApp() {
   }
 
   // Set up tray
-trayManager.setWindows(
-  windowManager.mainWindow,
-  windowManager.controlPanelWindow
-);
-trayManager.setWindowManager(windowManager);
-  trayManager.setCreateControlPanelCallback(() =>
-    windowManager.createControlPanelWindow()
-  );
+  trayManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
+  trayManager.setWindowManager(windowManager);
+  trayManager.setCreateControlPanelCallback(() => windowManager.createControlPanelWindow());
   await trayManager.createTray();
 
   // Set windows for update manager and check for updates
-  updateManager.setWindows(
-    windowManager.mainWindow,
-    windowManager.controlPanelWindow
-  );
+  updateManager.setWindows(windowManager.mainWindow, windowManager.controlPanelWindow);
   updateManager.checkForUpdatesOnStartup();
 
   if (process.platform === "darwin") {
     globeKeyManager.on("globe-down", () => {
       // Forward to control panel for hotkey capture
-      if (
-        windowManager.controlPanelWindow &&
-        !windowManager.controlPanelWindow.isDestroyed()
-      ) {
+      if (windowManager.controlPanelWindow && !windowManager.controlPanelWindow.isDestroyed()) {
         windowManager.controlPanelWindow.webContents.send("globe-key-pressed");
       }
 
       // Handle dictation toggle if Globe is the current hotkey
       if (hotkeyManager.getCurrentHotkey && hotkeyManager.getCurrentHotkey() === "GLOBE") {
-        if (
-          windowManager.mainWindow &&
-          !windowManager.mainWindow.isDestroyed()
-        ) {
+        if (windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
           windowManager.showDictationPanel();
           windowManager.mainWindow.webContents.send("toggle-dictation");
         }
@@ -228,11 +238,11 @@ trayManager.setWindowManager(windowManager);
 app.whenReady().then(() => {
   // Hide dock icon on macOS for a cleaner experience
   // The app will still show in the menu bar and command bar
-  if (process.platform === 'darwin' && app.dock) {
+  if (process.platform === "darwin" && app.dock) {
     // Keep dock visible for now to maintain command bar access
     // We can hide it later if needed: app.dock.hide()
   }
-  
+
   startApp();
 });
 
@@ -267,14 +277,18 @@ app.on("activate", () => {
     }
   } else {
     // Show control panel when dock icon is clicked (most common user action)
-    if (windowManager && windowManager.controlPanelWindow && !windowManager.controlPanelWindow.isDestroyed()) {
+    if (
+      windowManager &&
+      windowManager.controlPanelWindow &&
+      !windowManager.controlPanelWindow.isDestroyed()
+    ) {
       windowManager.controlPanelWindow.show();
       windowManager.controlPanelWindow.focus();
     } else if (windowManager) {
       // If control panel doesn't exist, create it
       windowManager.createControlPanelWindow();
     }
-    
+
     // Ensure dictation panel maintains its always-on-top status
     if (windowManager && windowManager.mainWindow && !windowManager.mainWindow.isDestroyed()) {
       windowManager.enforceMainWindowOnTop();
