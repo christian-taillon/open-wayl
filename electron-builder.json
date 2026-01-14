@@ -5,7 +5,7 @@
     "output": "dist"
   },
   "npmRebuild": true,
-  "buildDependenciesFromSource": true,
+  "buildDependenciesFromSource": false,
   "files": [
     "main.js",
     "preload.js",
@@ -31,7 +31,11 @@
     "src/assets/**/*",
     "resources/macos-globe-listener.swift",
     "resources/bin/macos-globe-listener",
-    "resources/bin/whisper-cpp-*"
+    {
+      "from": "resources/bin/",
+      "to": "bin/",
+      "filter": ["whisper-cpp-*"]
+    }
   ],
   "mac": {
     "category": "public.app-category.productivity",
@@ -62,7 +66,13 @@
       "nsis",
       "portable"
     ],
-    "icon": "src/assets/icon.ico"
+    "icon": "src/assets/icon.ico",
+    "extraResources": [
+      {
+        "from": "resources/bin/nircmd.exe",
+        "to": "bin/nircmd.exe"
+      }
+    ]
   },
   "linux": {
     "target": ["AppImage", "deb", "rpm", "tar.gz"],

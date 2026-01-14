@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.6] - 2026-01-13
+
+### Changed
+- **Settings Layout**: Moved settings navigation to left side on Windows and Linux for improved consistency
+
+### Fixed
+- **Linux Whisper Detection**: Fixed issue where Python-based Whisper could be used instead of whisper.cpp on Linux systems
+
+## [1.2.5] - 2026-01-13
+
+### Added
+- **Model Validation**: Added validation when deleting or loading Whisper models to ensure model integrity
+- **Download Cancellation**: Added ability to cancel in-progress model downloads in whisper pickers
+- **Windows Paste Performance**: Added nircmd for faster text pasting on Windows
+
+### Fixed
+- **EventEmitter Memory Leak**: Fixed memory leak caused by duplicate listener registration in useUpdater hook across ControlPanel and SettingsPage components
+- **FFmpeg Path Resolution**: Fixed FFmpeg path resolution in unpacked ASAR for local whisper.cpp transcription
+
+### Changed
+- **UI Cleanup**: Removed redundant UI elements for a cleaner interface
+
+## [1.2.4] - 2026-01-13
+
+### Changed
+- **whisper.cpp Packaging**: Moved whisper.cpp binaries from ASAR to extraResources for improved reliability and faster startup
+
+### Fixed
+- **Package Lock Sync**: Fixed package-lock.json synchronization with package.json dependencies
+
+## [1.2.3] - 2026-01-13
+
+### Added
+- **Extended Hotkey Support**: Added numpad keys, media keys, and additional special keys (Pause, ScrollLock, PrintScreen, NumLock) for hotkey selection
+- **Improved Hotkey Error Messages**: Registration failures now include helpful suggestions for alternative hotkeys
+
+### Changed
+- **Linux Paste Tools**: Only show paste tools installation prompt on Linux when tools are not available
+
+### Fixed
+- **Hotkey Debugging**: Added comprehensive debug logging to hotkey manager for troubleshooting registration issues
+
 ## [1.2.2] - 2026-01-13
 
 ### Fixed

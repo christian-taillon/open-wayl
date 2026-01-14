@@ -20,6 +20,7 @@ OpenWayl solves this with two key components:
 ### Quick Setup Steps
 
 **1. Install ydotool:**
+
 ```bash
 # Arch/Manjaro
 sudo pacman -S ydotool
@@ -29,6 +30,7 @@ sudo apt install ydotool
 ```
 
 **2. Configure ydotool service:**
+
 ```bash
 # Add your user to input group
 sudo usermod -aG input $USER
@@ -44,6 +46,7 @@ systemctl --user enable --now ydotool.service
 ```
 
 **3. Set up global hotkey in GNOME:**
+
 - Go to **Settings > Keyboard > Custom Shortcuts**
 - **Name:** OpenWayl Toggle
 - **Command:** `/home/christian/github/open-whispr/scripts/wayland-toggle.sh`
@@ -52,6 +55,7 @@ systemctl --user enable --now ydotool.service
 👉 **[Full Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md)** 👈
 
 **The setup guide covers:**
+
 - Complete ydotool installation and udev rules
 - systemd service configuration with troubleshooting
 - GNOME/KDE/Hyprland shortcut setup
@@ -92,6 +96,7 @@ systemctl --user enable --now ydotool.service
 - On macOS, Globe key support requires Xcode Command Line Tools (`xcode-select --install`)
 
 **Platform Support:**
+
 - ✅ **Linux (Wayland)**: Fully optimized with ydotool and systemd integration
 - ✅ **Linux (X11)**: Native global hotkey and paste support
 - ✅ **macOS**: Native support with Globe/Fn key shortcuts
@@ -102,41 +107,44 @@ systemctl --user enable --now ydotool.service
 ### For Personal Use (Recommended)
 
 1. **Clone the repository**:
-    ```bash
-    git clone https://github.com/christian-taillon/open-wayl.git
-    cd open-wayl
-    ```
+
+   ```bash
+   git clone https://github.com/christian-taillon/open-wayl.git
+   cd open-wayl
+   ```
 
 2. **Install dependencies**:
-    ```bash
-    npm install
-    ```
+
+   ```bash
+   npm install
+   ```
 
 3. **For Wayland users: Configure ydotool and global hotkey**
-    - Follow the **[Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md)** above
-    - Install ydotool, set up the systemd service, and configure desktop shortcuts
+   - Follow the **[Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md)** above
+   - Install ydotool, set up the systemd service, and configure desktop shortcuts
 
 4. **Optional: Set up API keys** (only needed for cloud processing):
-    
-    **Method A - Environment file**:
-    ```bash
-    cp env.example .env
-    # Edit .env and add your API keys:
-    # OPENAI_API_KEY=your_openai_key
-    # ANTHROPIC_API_KEY=your_anthropic_key
-    # GEMINI_API_KEY=your_gemini_key
-    ```
-    
-    **Method B - In-app configuration**:
-    - Run the app and configure API keys through the Control Panel
-    - Keys are automatically saved and persist across app restarts
+
+   **Method A - Environment file**:
+
+   ```bash
+   cp env.example .env
+   # Edit .env and add your API keys:
+   # OPENAI_API_KEY=your_openai_key
+   # ANTHROPIC_API_KEY=your_anthropic_key
+   # GEMINI_API_KEY=your_gemini_key
+   ```
+
+   **Method B - In-app configuration**:
+   - Run the app and configure API keys through the Control Panel
+   - Keys are automatically saved and persist across app restarts
 
 5. **Run the application**:
-    ```bash
-    npm run dev  # Development mode with hot reload
-    # OR
-    npm start    # Production mode
-    ```
+   ```bash
+   npm run dev  # Development mode with hot reload
+   # OR
+   npm start    # Production mode
+   ```
 
 **After starting**: Use the hotkey (default: backtick `) or your configured Wayland shortcut to toggle dictation.
 
@@ -155,7 +163,8 @@ npm run pack
 OpenWayl supports multiple Linux package formats for maximum compatibility:
 
 **Available Formats**:
-- `.deb` - Debian, Ubuntu, Linux Mint, Pop!_OS
+
+- `.deb` - Debian, Ubuntu, Linux Mint, Pop!\_OS
 - `.rpm` - Fedora, Red Hat, CentOS, openSUSE
 - `.tar.gz` - Universal archive (works on any distro)
 - `.flatpak` - Sandboxed cross-distro package
@@ -191,18 +200,18 @@ sudo pacman -S ydotool
 ### First Time Setup
 
 1. **Choose Processing Method**:
-    - **Local Processing**: Download Whisper models for completely private transcription
-    - **Cloud Processing**: Use OpenAI's API for faster transcription (requires API key)
+   - **Local Processing**: Download Whisper models for completely private transcription
+   - **Cloud Processing**: Use OpenAI's API for faster transcription (requires API key)
 
 2. **Grant Permissions**:
-    - **Microphone Access**: Required for voice recording
-    - **Accessibility Permissions**: Required for automatic text pasting (macOS)
-    - **Wayland Setup**: Install ydotool and configure desktop shortcuts (Linux Wayland)
+   - **Microphone Access**: Required for voice recording
+   - **Accessibility Permissions**: Required for automatic text pasting (macOS)
+   - **Wayland Setup**: Install ydotool and configure desktop shortcuts (Linux Wayland)
 
 3. **Name Your Agent**: Give your AI assistant a personal name (e.g., "Assistant", "Jarvis", "Alex")
-    - Makes interactions feel more natural and conversational
-    - Helps distinguish between giving commands and regular dictation
-    - Can be changed anytime in settings
+   - Makes interactions feel more natural and conversational
+   - Helps distinguish between giving commands and regular dictation
+   - Can be changed anytime in settings
 
 4. **Configure Global Hotkey**: Default is backtick (`) but can be customized
    - **Wayland users**: Must configure a desktop shortcut in GNOME/KDE settings
@@ -212,6 +221,7 @@ sudo pacman -S ydotool
 ## Usage
 
 ### Basic Dictation
+
 1. **Start the app** - A small draggable panel appears on your screen
 2. **Press your hotkey** (default: backtick `) to start recording
    - **Wayland users**: Configure a custom desktop shortcut (see Wayland Setup above)
@@ -223,6 +233,7 @@ sudo pacman -S ydotool
 **Note**: On Wayland, the hotkey is handled by your desktop environment (GNOME, KDE, etc.), not by the app itself.
 
 ### Processing Options
+
 - **Local Processing**:
   - Install Whisper automatically through the Control Panel
   - Download models: tiny (39MB, fastest), base (74MB, recommended), small (244MB), medium (769MB), large (1.5GB, best quality), turbo (809MB, fast with good quality)
@@ -304,12 +315,13 @@ For local processing, OpenWayl uses OpenAI's Whisper model via **whisper.cpp** -
 3. **No Dependencies**: No Python or other runtime required
 
 **System Fallback**: If the bundled binary fails, install via package manager:
+
 - macOS: `brew install whisper-cpp`
 - Linux: Build from source at https://github.com/ggml-org/whisper.cpp
 
 ## Project Status
 
-OpenWayl is actively maintained and ready for production use. Version: 1.2.2
+OpenWayl is actively maintained and ready for production use. Version: 1.2.6 (Synced with OpenWhispr 1.2.6 progress)
 
 - ✅ Core functionality complete
 - ✅ Wayland-optimized with ydotool integration

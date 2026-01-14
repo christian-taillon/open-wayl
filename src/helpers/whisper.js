@@ -92,8 +92,9 @@ class WhisperManager {
 
     const candidates = [];
 
-    // Production: check resources path
+    // Production: extraResources copies to {resourcesPath}/bin/ via from/to mapping
     if (process.resourcesPath) {
+      // Primary location: extraResources with "to": "bin/"
       candidates.push(
         path.join(process.resourcesPath, "bin", platformBinaryName),
         path.join(process.resourcesPath, "bin", genericBinaryName)
@@ -108,86 +109,49 @@ class WhisperManager {
 
     for (const candidate of candidates) {
       if (fs.existsSync(candidate)) {
-        return candidate;
+        try {
+          const stats = fs.statSync(candidate);
+          debugLogger.debug("Found whisper.cpp binary", {
+            path: candidate,
+            size: stats.size,
+          });
+          return candidate;
+        } catch (statError) {
+          debugLogger.warn("Binary exists but cannot be accessed", {
+            path: candidate,
+            error: statError.message,
+          });
+        }
       }
     }
 
+    debugLogger.warn("whisper.cpp binary not found", {
+      platform,
+      arch,
+      searchedPaths: candidates,
+    });
     return null;
   }
 
   async getSystemBinaryPath() {
+    // On Linux, avoid "whisper" as it conflicts with Python's openai-whisper package
     const binaryNames =
       process.platform === "win32"
         ? ["whisper-cpp.exe", "whisper.exe"]
-        : ["whisper-cpp", "main", "whisper"];
-
-    const getHelpOutput = async (binaryPath) => {
-      return await new Promise((resolve, reject) => {
-        const proc = spawn(binaryPath, ["--help"], { stdio: ["ignore", "pipe", "pipe"] });
-        let stdout = "";
-        let stderr = "";
-        let settled = false;
-
-        const timeout = setTimeout(() => {
-          killProcess(proc, "SIGTERM");
-          if (!settled) {
-            settled = true;
-            reject(new Error("Help command timed out"));
-          }
-        }, TIMEOUTS.QUICK_CHECK);
-
-        const finalize = (resolver, value) => {
-          if (settled) return;
-          settled = true;
-          clearTimeout(timeout);
-          resolver(value);
-        };
-
-        proc.stdout.on("data", (data) => {
-          stdout += data.toString();
-        });
-
-        proc.stderr.on("data", (data) => {
-          stderr += data.toString();
-        });
-
-        proc.on("close", () => {
-          finalize(resolve, `${stdout}\n${stderr}`.trim());
-        });
-
-        proc.on("error", (err) => {
-          finalize(reject, err);
-        });
-      });
-    };
-
-    const isWhisperCpp = (helpText) => {
-      const normalized = helpText.toLowerCase();
-      if (!normalized) return false;
-      if (normalized.includes("output_format")) return false;
-      return (
-        normalized.includes("whisper.cpp") ||
-        normalized.includes("whisper-cpp") ||
-        normalized.includes("--output-json") ||
-        normalized.includes("-of")
-      );
-    };
+        : process.platform === "linux"
+          ? ["whisper-cpp", "main"]
+          : ["whisper-cpp", "whisper", "main"];
 
     for (const name of binaryNames) {
       try {
         const checkCmd = process.platform === "win32" ? "where" : "which";
         const { output } = await runCommand(checkCmd, [name], { timeout: TIMEOUTS.QUICK_CHECK });
         const binaryPath = output.trim().split("\n")[0];
-        if (binaryPath && fs.existsSync(binaryPath)) {
-          try {
-            const helpOutput = await getHelpOutput(binaryPath);
-            if (!isWhisperCpp(helpOutput)) {
-              continue;
-            }
-          } catch {
-            // If help fails, skip to avoid picking unsupported binaries
-            continue;
-          }
+        if (
+          binaryPath &&
+          fs.existsSync(binaryPath) &&
+          (await this.isWhisperCppBinary(binaryPath))
+        ) {
           return binaryPath;
         }
       } catch {
@@ -195,43 +159,46 @@ class WhisperManager {
       }
     }
 
-    // Check common installation paths
-    const commonPaths =
-      process.platform === "darwin"
-        ? [
-            "/opt/homebrew/bin/whisper-cpp",
-            "/usr/local/bin/whisper-cpp",
-            "/opt/homebrew/bin/whisper",
-            "/usr/local/bin/whisper",
-          ]
-        : [
-            "/usr/bin/whisper-cpp",
-            "/usr/local/bin/whisper-cpp",
-            "/usr/bin/whisper",
-            "/usr/local/bin/whisper",
-          ];
-
-    for (const p of commonPaths) {
-      if (fs.existsSync(p)) {
-        try {
-          const helpOutput = await getHelpOutput(p);
-          if (!isWhisperCpp(helpOutput)) {
-            continue;
-          }
-        } catch {
-          continue;
+    // Check common Homebrew paths on macOS
+    if (process.platform === "darwin") {
+      const commonPaths = [
+        "/opt/homebrew/bin/whisper-cpp",
+        "/opt/homebrew/bin/whisper",
+        "/usr/local/bin/whisper-cpp",
+        "/usr/local/bin/whisper",
+      ];
+      for (const p of commonPaths) {
+        if (fs.existsSync(p) && (await this.isWhisperCppBinary(p))) {
+          return p;
         }
-        return p;
       }
     }
 
     return null;
   }
 
+  async isWhisperCppBinary(binaryPath) {
+    try {
+      // whisper.cpp uses "-m FNAME" and "-f FNAME" flags; Python whisper uses different args
+      const { output } = await runCommand(binaryPath, ["--help"], {
+        timeout: TIMEOUTS.QUICK_CHECK,
+      });
+      return (
+        output.includes("-m FNAME") ||
+        output.includes("-f FNAME") ||
+        output.includes("--model FNAME")
+      );
+    } catch {
+      return false;
+    }
+  }
+
   async getWhisperBinaryPath() {
+    // Use cached path if file still exists (binary type already validated during discovery)
     if (this.cachedBinaryPath && fs.existsSync(this.cachedBinaryPath)) {
       return this.cachedBinaryPath;
     }
+    this.cachedBinaryPath = null;
 
     // Priority: bundled > system
     let binaryPath = this.getBundledBinaryPath();
@@ -246,6 +213,10 @@ class WhisperManager {
     }
 
     return binaryPath;
+  }
+
+  clearBinaryCache() {
+    this.cachedBinaryPath = null;
   }
 
   async initializeAtStartup() {
@@ -300,6 +271,26 @@ class WhisperManager {
     try {
       const result = await this.runWhisperProcess(binaryPath, tempAudioPath, modelPath, language);
       return this.parseWhisperResult(result);
+    } catch (error) {
+      // Exit code 2 typically means argument error - possibly wrong binary (Python whisper vs whisper.cpp)
+      if (error.message?.includes("code 2") && this.cachedBinaryPath) {
+        debugLogger.debug("Transcription failed with code 2, clearing cache and retrying", {
+          binaryPath,
+        });
+        this.clearBinaryCache();
+        const retryBinaryPath = await this.getWhisperBinaryPath();
+        if (retryBinaryPath && retryBinaryPath !== binaryPath) {
+          debugLogger.log("Retrying with different binary:", retryBinaryPath);
+          const result = await this.runWhisperProcess(
+            retryBinaryPath,
+            tempAudioPath,
+            modelPath,
+            language
+          );
+          return this.parseWhisperResult(result);
+        }
+      }
+      throw error;
     } finally {
       await this.cleanupTempFile(tempAudioPath);
     }
@@ -509,9 +500,14 @@ class WhisperManager {
       whisperProcess.on("close", (exitCode) =>
         settle(resolve, { code: exitCode, stderr: stderrData })
       );
-      whisperProcess.on("error", (err) =>
-        settle(reject, new Error(`Whisper process error: ${err.message}`))
-      );
+      whisperProcess.on("error", (err) => {
+        debugLogger.error("Whisper process spawn failed", {
+          error: err.code || err.message,
+          binaryPath,
+          binaryExists: fs.existsSync(binaryPath),
+        });
+        settle(reject, new Error(`Failed to start whisper.cpp: ${err.message}`));
+      });
     });
 
     debugLogger.logWhisperPipeline("Process closed", {
@@ -890,21 +886,22 @@ class WhisperManager {
         ffmpegPath += ".exe";
       }
 
+      // Try unpacked ASAR path first (production builds unpack ffmpeg-static)
+      const unpackedPath = ffmpegPath.replace(/app\.asar([/\\])/, "app.asar.unpacked$1");
+      if (fs.existsSync(unpackedPath)) {
+        debugLogger.debug("Found FFmpeg in unpacked ASAR", { path: unpackedPath });
+        this.cachedFFmpegPath = unpackedPath;
+        return unpackedPath;
+      }
+
+      // Try original path (development or if not in ASAR)
       if (fs.existsSync(ffmpegPath)) {
         if (process.platform !== "win32") {
           fs.accessSync(ffmpegPath, fs.constants.X_OK);
         }
+        debugLogger.debug("Found FFmpeg at bundled path", { path: ffmpegPath });
         this.cachedFFmpegPath = ffmpegPath;
         return ffmpegPath;
-      }
-
-      // Try unpacked ASAR path
-      if (process.env.NODE_ENV !== "development") {
-        const unpackedPath = ffmpegPath.replace(/app\.asar([/\\])/, "app.asar.unpacked$1");
-        if (fs.existsSync(unpackedPath)) {
-          this.cachedFFmpegPath = unpackedPath;
-          return unpackedPath;
-        }
       }
     } catch {
       // Bundled FFmpeg not available

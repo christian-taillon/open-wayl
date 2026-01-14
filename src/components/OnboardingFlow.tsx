@@ -799,13 +799,16 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
                 />
               )}
 
-              {!isMacOS && (
-                <PasteToolsInfo
-                  pasteToolsInfo={permissionsHook.pasteToolsInfo}
-                  isChecking={permissionsHook.isCheckingPasteTools}
-                  onCheck={permissionsHook.checkPasteToolsAvailability}
-                />
-              )}
+              {/* Only show PasteToolsInfo on Linux when tools are NOT available (to show install instructions) */}
+              {platform === "linux" &&
+                permissionsHook.pasteToolsInfo &&
+                !permissionsHook.pasteToolsInfo.available && (
+                  <PasteToolsInfo
+                    pasteToolsInfo={permissionsHook.pasteToolsInfo}
+                    isChecking={permissionsHook.isCheckingPasteTools}
+                    onCheck={permissionsHook.checkPasteToolsAvailability}
+                  />
+                )}
             </div>
 
             <div className="bg-amber-50 p-4 rounded-lg">

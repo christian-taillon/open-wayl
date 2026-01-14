@@ -1,9 +1,11 @@
-const { clipboard } = require("electron");
+const { clipboard, app } = require("electron");
 const { spawn, spawnSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { killProcess } = require("../utils/process");
+const path = require("path");
+const fs = require("fs");
 
 // Cache TTL constants - these mirror CACHE_CONFIG.AVAILABILITY_CHECK_TTL in src/config/constants.ts
 const CACHE_TTL_MS = 30000;
@@ -14,6 +16,45 @@ class ClipboardManager {
   constructor() {
     this.accessibilityCache = { value: null, expiresAt: 0 };
     this.commandAvailabilityCache = new Map();
+    this.nircmdPath = null;
+    this.nircmdChecked = false;
+  }
+
+  // Get path to nircmd.exe (Windows only)
+  getNircmdPath() {
+    if (this.nircmdChecked) {
+      return this.nircmdPath;
+    }
+
+    this.nircmdChecked = true;
+
+    if (process.platform !== "win32") {
+      return null;
+    }
+
+    // Try multiple paths for nircmd.exe
+    const possiblePaths = [
+      // Production: extraResources
+      path.join(process.resourcesPath, "bin", "nircmd.exe"),
+      // Development: resources/bin
+      path.join(__dirname, "..", "..", "resources", "bin", "nircmd.exe"),
+      path.join(process.cwd(), "resources", "bin", "nircmd.exe"),
+    ];
+
+    for (const nircmdPath of possiblePaths) {
+      try {
+        if (fs.existsSync(nircmdPath)) {
+          this.safeLog(`✅ Found nircmd.exe at: ${nircmdPath}`);
+          this.nircmdPath = nircmdPath;
+          return nircmdPath;
+        }
+      } catch (error) {
+        // Continue checking other paths
+      }
+    }
+
+    this.safeLog("⚠️ nircmd.exe not found, will use PowerShell fallback");
+    return null;
   }
 
   // Safe logging method - only log in development
@@ -142,57 +183,168 @@ class ClipboardManager {
   }
 
   async pasteWindows(originalClipboard) {
+    // Try nircmd first if available, fallback to PowerShell
+    const nircmdPath = this.getNircmdPath();
+
+    if (nircmdPath) {
+      return this.pasteWithNircmd(nircmdPath, originalClipboard);
+    } else {
+      return this.pasteWithPowerShell(originalClipboard);
+    }
+  }
+
+  async pasteWithNircmd(nircmdPath, originalClipboard) {
     return new Promise((resolve, reject) => {
-      let hasTimedOut = false;
+      // Minimal delay for nircmd - it's very fast
+      setTimeout(() => {
+        let hasTimedOut = false;
+        const startTime = Date.now();
 
-      // -NoProfile: Skip loading user profile scripts (significant startup time savings)
-      // -NonInteractive: Prevent prompts that could hang execution
-      const pasteProcess = spawn("powershell", [
-        "-NoProfile",
-        "-NonInteractive",
-        "-Command",
-        'Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")',
-      ]);
+        this.safeLog("⚡ Starting nircmd paste operation...");
 
-      pasteProcess.on("close", (code) => {
-        if (hasTimedOut) return;
-        clearTimeout(timeoutId);
+        // nircmd sendkey ctrl+v
+        const pasteProcess = spawn(nircmdPath, ["sendkeypress", "ctrl+v"]);
 
-        if (code === 0) {
-          // Text pasted successfully
-          setTimeout(() => {
-            clipboard.writeText(originalClipboard);
-          }, PASTE_DELAY_MS);
-          resolve();
-        } else {
+        let errorOutput = "";
+
+        pasteProcess.stderr.on("data", (data) => {
+          errorOutput += data.toString();
+        });
+
+        pasteProcess.on("close", (code) => {
+          if (hasTimedOut) return;
+          clearTimeout(timeoutId);
+
+          const elapsed = Date.now() - startTime;
+
+          if (code === 0) {
+            this.safeLog(`✅ nircmd paste completed successfully in ${elapsed}ms`);
+            // Restore original clipboard quickly
+            setTimeout(() => {
+              clipboard.writeText(originalClipboard);
+              this.safeLog("🔄 Original clipboard content restored");
+            }, 50);
+            resolve();
+          } else {
+            this.safeLog(
+              `❌ nircmd paste failed with code ${code} after ${elapsed}ms`,
+              errorOutput
+            );
+            // Fallback to PowerShell
+            this.safeLog("🔄 Falling back to PowerShell...");
+            this.pasteWithPowerShell(originalClipboard).then(resolve).catch(reject);
+          }
+        });
+
+        pasteProcess.on("error", (error) => {
+          if (hasTimedOut) return;
+          clearTimeout(timeoutId);
+          const elapsed = Date.now() - startTime;
+          this.safeLog(`❌ nircmd error after ${elapsed}ms:`, error.message);
+          // Fallback to PowerShell
+          this.safeLog("🔄 Falling back to PowerShell...");
+          this.pasteWithPowerShell(originalClipboard).then(resolve).catch(reject);
+        });
+
+        const timeoutId = setTimeout(() => {
+          hasTimedOut = true;
+          const elapsed = Date.now() - startTime;
+          this.safeLog(`⏱️ nircmd paste timed out after ${elapsed}ms`);
+          killProcess(pasteProcess, "SIGKILL");
+          pasteProcess.removeAllListeners();
+          // Fallback to PowerShell
+          this.safeLog("🔄 Falling back to PowerShell...");
+          this.pasteWithPowerShell(originalClipboard).then(resolve).catch(reject);
+        }, 2000); // Shorter timeout for fast nircmd
+      }, 5); // Very short delay for nircmd
+    });
+  }
+
+  async pasteWithPowerShell(originalClipboard) {
+    return new Promise((resolve, reject) => {
+      // Reduce delay - clipboard.writeText is synchronous so no need to wait
+      setTimeout(() => {
+        let hasTimedOut = false;
+        const startTime = Date.now();
+
+        this.safeLog("🪟 Starting PowerShell paste operation...");
+
+        // Optimized PowerShell command:
+        // - Uses [void] to suppress output (faster)
+        // - WindowStyle Hidden to prevent window flash
+        // - ExecutionPolicy Bypass to skip policy checks
+        // - Shorter variable names and compact syntax
+        const pasteProcess = spawn("powershell.exe", [
+          "-NoProfile",
+          "-NonInteractive",
+          "-WindowStyle",
+          "Hidden",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-Command",
+          // Optimized: Load assembly and send keys in one line, suppress output
+          "[void][System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms');[System.Windows.Forms.SendKeys]::SendWait('^v')",
+        ]);
+
+        let errorOutput = "";
+
+        pasteProcess.stderr.on("data", (data) => {
+          errorOutput += data.toString();
+        });
+
+        pasteProcess.on("close", (code) => {
+          if (hasTimedOut) return;
+          clearTimeout(timeoutId);
+
+          const elapsed = Date.now() - startTime;
+
+          if (code === 0) {
+            this.safeLog(`✅ PowerShell paste completed successfully in ${elapsed}ms`);
+            // Text pasted successfully - restore original clipboard
+            // Use shorter delay since paste is already complete
+            setTimeout(() => {
+              clipboard.writeText(originalClipboard);
+              this.safeLog("🔄 Original clipboard content restored");
+            }, 50);
+            resolve();
+          } else {
+            this.safeLog(
+              `❌ PowerShell paste failed with code ${code} after ${elapsed}ms`,
+              errorOutput
+            );
+            reject(
+              new Error(
+                `Windows paste failed with code ${code}. Text is copied to clipboard - please paste manually with Ctrl+V.`
+              )
+            );
+          }
+        });
+
+        pasteProcess.on("error", (error) => {
+          if (hasTimedOut) return;
+          clearTimeout(timeoutId);
+          const elapsed = Date.now() - startTime;
+          this.safeLog(`❌ PowerShell paste error after ${elapsed}ms:`, error.message);
           reject(
             new Error(
-              `Windows paste failed with code ${code}. Text is copied to clipboard - please paste manually with Ctrl+V.`
+              `Windows paste failed: ${error.message}. Text is copied to clipboard - please paste manually with Ctrl+V.`
             )
           );
-        }
-      });
+        });
 
-      pasteProcess.on("error", (error) => {
-        if (hasTimedOut) return;
-        clearTimeout(timeoutId);
-        reject(
-          new Error(
-            `Windows paste failed: ${error.message}. Text is copied to clipboard - please paste manually with Ctrl+V.`
-          )
-        );
-      });
-
-      const timeoutId = setTimeout(() => {
-        hasTimedOut = true;
-        killProcess(pasteProcess, "SIGKILL");
-        pasteProcess.removeAllListeners();
-        reject(
-          new Error(
-            "Paste operation timed out. Text is copied to clipboard - please paste manually with Ctrl+V."
-          )
-        );
-      }, 3000);
+        const timeoutId = setTimeout(() => {
+          hasTimedOut = true;
+          const elapsed = Date.now() - startTime;
+          this.safeLog(`⏱️ PowerShell paste operation timed out after ${elapsed}ms`);
+          killProcess(pasteProcess, "SIGKILL");
+          pasteProcess.removeAllListeners();
+          reject(
+            new Error(
+              "Paste operation timed out. Text is copied to clipboard - please paste manually with Ctrl+V."
+            )
+          );
+        }, 5000);
+      }, 10); // Reduced from PASTE_DELAY_MS (50ms) to 10ms - clipboard write is synchronous
     });
   }
 
