@@ -4,6 +4,10 @@ A Linux-first desktop dictation application optimized for **Wayland**, based on 
 
 > **Note:** This is a specialized fork of [OpenWhispr](https://github.com/HeroTools/open-whispr) designed for modern Linux environments (GNOME, KDE, Hyprland) where Electron apps struggle with global shortcuts and automation.
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=HeroTools/open-whispr&type=date&legend=top-left)](https://www.star-history.com/#HeroTools/open-whispr&type=date&legend=top-left)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
@@ -321,7 +325,7 @@ For local processing, OpenWayl uses OpenAI's Whisper model via **whisper.cpp** -
 
 ## Project Status
 
-OpenWayl is actively maintained and ready for production use. Version: 1.2.6 (Synced with OpenWhispr 1.2.6 progress)
+OpenWayl is actively maintained and ready for production use. Version: 1.2.7 (Synced with OpenWhispr 1.2.7 progress)
 
 - ✅ Core functionality complete
 - ✅ Wayland-optimized with ydotool integration

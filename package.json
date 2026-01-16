@@ -1,6 +1,6 @@
 {
   "name": "open-wayl",
-  "version": "1.2.6",
+  "version": "1.2.7",
   "description": "A desktop dictation application optimized for Linux Wayland, forked from OpenWhispr",
   "main": "main.js",
   "private": true,
