@@ -4,9 +4,15 @@ A Linux-first desktop dictation application optimized for **Wayland**, based on 
 
 > **Note:** This is a specialized fork of [OpenWhispr](https://github.com/HeroTools/open-whispr) designed for modern Linux environments (GNOME, KDE, Hyprland) where Electron apps struggle with global shortcuts and automation.
 
-## Star History
+## Why Open-Wayl?
 
-[![Star History Chart](https://api.star-history.com/svg?repos=HeroTools/open-whispr&type=date&legend=top-left)](https://www.star-history.com/#HeroTools/open-whispr&type=date&legend=top-left)
+Open-Wayl is an actively maintained fork of [OpenWhispr](https://github.com/HeroTools/open-whispr), established to provide consistent updates and deeper integration with modern Linux environments.
+
+This project exists to ensure:
+
+- **Active Maintenance**: Regular bug fixes, dependency updates, and feature improvements.
+- **Wayland Focus**: Solving the unique challenges of Wayland (like global hotkeys and clipboard security) that generic Electron apps often struggle with.
+- **Continued Evolution**: Building upon the excellent foundation of OpenWhispr while adapting to new technologies (React 19, newer Electron versions).
 
 ## License
 
@@ -49,20 +55,13 @@ mkdir -p ~/.config/systemd/user/
 systemctl --user enable --now ydotool.service
 ```
 
-**3. Set up global hotkey in GNOME:**
-
-- Go to **Settings > Keyboard > Custom Shortcuts**
-- **Name:** OpenWayl Toggle
-- **Command:** `/home/christian/github/open-whispr/scripts/wayland-toggle.sh`
-- **Shortcut:** Super+Space (or your preferred key)
-
 👉 **[Full Wayland Setup Guide](https://github.com/christian-taillon/open-wayl/blob/main/WAYLAND_SETUP.md)** 👈
 
 **The setup guide covers:**
 
 - Complete ydotool installation and udev rules
 - systemd service configuration with troubleshooting
-- GNOME/KDE/Hyprland shortcut setup
+- KDE/Hyprland shortcut setup
 - Common issues and fixes
 
 **Without this setup, global hotkeys won't work and text won't auto-paste on Wayland.**
