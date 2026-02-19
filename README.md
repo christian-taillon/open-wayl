@@ -2,6 +2,11 @@
 
 [![Downloads](https://img.shields.io/github/downloads/OpenWhispr/openwhispr/total?style=flat&color=blue)](https://github.com/OpenWhispr/openwhispr/releases)
 
+> **Linux Fork Status (Feb 2026)**: This fork includes critical fixes for Linux (GNOME Wayland) stability:
+> - **Startup Fix**: Resolves GTK3/4 crash on Electron 36.
+> - **Paste Reliability**: Fixes clipboard issues in terminals on Wayland.
+> - **CUDA Support**: Includes experimental support for GPU-accelerated local reasoning (see Issue #294).
+
 An open source desktop dictation application that converts speech to text using OpenAI Whisper. Features both local and cloud processing options for maximum flexibility and privacy.
 
 ## Star History
